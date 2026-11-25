@@ -1,6 +1,8 @@
 # Build plan
 
-Current stage: **Stage 1** (backend core, Kitimat only, on the main development Mac).
+Current stage: **Stage 1** (backend core, Kitimat only, on the main development Mac). Steps 1 to 5 done; next is step 6 (`publish.py` and `docs/JSON_SCHEMA.md`).
+
+Repo privacy fix (done 24 Nov 2026): local history rewritten so no commit holds personal details, and every commit's author and committer is the GitHub noreply identity. Not pushed; no GitHub repo yet.
 
 ## Stage 0: foundation (done 24 Nov 2026, in chat)
 - Repo scaffold, CLAUDE.md, docs, config.
@@ -14,7 +16,7 @@ Current stage: **Stage 1** (backend core, Kitimat only, on the main development 
 2. Confirm current Open-Meteo docs: live forecast endpoint, model ids, Ensemble API ids, and the model-update metadata endpoint. Record links in `openmeteo.py`. (Done 24 Nov 2026: ensemble ids fixed in `config/sources.json`, GEFS uses the 0.5 deg run for 14 days, metadata paths per source added.)
 3. `refresh.py`: check which sources have a new run; pull only those; save each raw pull under `data/store/` (date-stamped JSON); log every refusal. (Done 24 Nov 2026: first live run pulled all 12 sources, 0 refusals; a second run found nothing new and pulled nothing.)
 4. `score.py` (nightly): pull ECCC daily for Kitimat Forest Ave, match stored forecasts by lead, update habit fixes and weights. (Done 24 Nov 2026: habit fixes and weights come from the Open-Meteo Previous Runs history, the same data the backtest uses; our own stored pulls are scored by lead in `live_scores.csv` and can take over once they cover 60+ days, after a backtest.)
-5. Days 8 to 14: deterministic models' archived 16-day runs (Open-Meteo Single Runs, from 2 Apr 2026) plus the 1991 to 2020 normal (Kitimat Townsite) as one more source. Horizon test in `backend/scripts/horizon.py`; Certainty falls honestly with lead. Ensembles: pulled, stored and scored on every refresh, no weight yet (Open-Meteo keeps no history of past ensemble runs). (Done 24 Nov 2026; results in ALGORITHM.md.)
+5. Days 8 to 14: deterministic models' archived 16-day runs (Open-Meteo Single Runs, from 2 Apr 2026) plus the 1991 to 2020 normal (Kitimat Townsite) as one more source. Horizon test in `backend/scripts/horizon.py`; Certainty falls honestly with lead. Ensembles: pulled, stored and scored on every refresh, no weight yet (Open-Meteo keeps no history of past ensemble runs). (Done 24 Nov 2026; results in ALGORITHM.md. Follow-up tests, not shipped: lifting the 35% cap for the normal, and blending the models as one group against the normal.)
 6. `publish.py`: write `public/kitimat.json` (schema in `docs/JSON_SCHEMA.md`, written in this stage): days 1 to 14 with high, low, precip, chance of precip, Certainty, tier, source weights, updated time, data credits.
 7. Acceptance: tests pass; backtest unchanged; one live run produces a valid `kitimat.json`; refusals logged.
 
