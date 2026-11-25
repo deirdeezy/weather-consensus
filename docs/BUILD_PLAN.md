@@ -1,8 +1,8 @@
 # Build plan
 
-Current stage: **Stage 2: live, shadow run started** (25 Nov 2026 UTC). Public repo https://github.com/deirdeezy/weather-consensus; hourly and nightly workflows on; `kitimat.json` at https://deirdeezy.github.io/weather-consensus/kitimat.json. The workflows are now the only writers of the `data` branch; the local `data/store/` is an old copy. Design: `docs/HOSTING.md`.
+Current stage: **Stage 3: iPhone app, setup started** (25 Nov 2026 UTC). Stage 2 is live and the shadow run continues alongside. Public repo https://github.com/deirdeezy/weather-consensus; hourly and nightly workflows on; `kitimat.json` at https://deirdeezy.github.io/weather-consensus/kitimat.json. The workflows are now the only writers of the `data` branch; the local `data/store/` is an old copy. Design: `docs/HOSTING.md`.
 
-Repo privacy fix (done 24 Nov 2026): local history rewritten so no commit holds personal details, and every commit's author and committer is the GitHub noreply identity. Not pushed; no GitHub repo yet.
+Repo privacy fix (done 24 Nov 2026): local history rewritten so no commit holds personal details, and every commit's author and committer is the GitHub noreply identity. The rewritten history is what went public: the GitHub repo was created from it on 25 Nov 2026 (Stage 2 step 6).
 
 ## Stage 0: foundation (done 24 Nov 2026, in chat)
 - Repo scaffold, CLAUDE.md, docs, config.
@@ -36,13 +36,21 @@ Then:
 - Ensembles: from about 24 Jan 2027 (60 days of our own record), backtest adding them to days 8 to 14. They join only if they help.
 
 ## Stage 3: SwiftUI app (Xcode on the main development Mac; read docs/XCODE.md first)
-- Decide minimum iOS version with the owner.
-- Connect Claude Code to Xcode's MCP server; open the project in Xcode.
-- New project in `ios/`: SwiftUI App life cycle, JSON project format, Swift Testing, String Catalog. App icon in Icon Composer 2.0 from the design canvas (three overlapping circles); preview both design generations.
+- Minimum iOS version: **iOS 27.0** (owner decision, 25 Nov 2026). Why:
+  - Same phones as iOS 26: iOS 27 runs on iPhone 11 and later, iPhone SE (2nd and 3rd generation) and the newer models, iPhone Duo included. Requiring it locks out no iPhone, only people who have not installed the free update.
+  - One OS to build and test: matches the iOS 27.2 SDK and simulator in Xcode 27.2, no availability checks, no extra simulator runtime.
+  - Lowering the minimum later is one build setting plus availability checks; raising it after release would strand people who already have the app.
+  - Known cost: on 24 Nov 2026 most iPhones were still on iOS 26 (third-party counts put iOS 27 at about 16 to 17%; Apple has not published an iOS 27 figure). Early TestFlight testers may need to update first. Public release comes after Stage 4, when the share will be higher.
+  - App Store rules allow it: uploads must target iOS 13 or later and be built with the iOS 26 SDK or later.
+  - Sources (checked 24 Nov 2026): Apple, iPhone models compatible with iOS 27 (https://support.apple.com/en-us/guide/iphone/iphe3fa5df43/ios); Apple, App Store iOS usage, "79% of all devices use iOS 26" as of 7 Jun 2026 (https://developer.apple.com/support/app-store/); Apple, Upcoming requirements (https://developer.apple.com/news/upcoming-requirements/); Statcounter (https://gs.statcounter.com/ios-version-market-share/mobile-tablet/worldwide); TelemetryDeck (https://telemetrydeck.com/survey/apple/iOS/minorSystemVersions/).
+- Connect Claude Code to Xcode's MCP server; open the project in Xcode. (Done 25 Nov 2026: project `.mcp.json` runs `xcrun mcpbridge`; probe answered as `xcode-tools` with 54 tools. Its tools load in a new Claude Code session after the owner approves the project server.)
+- New project in `ios/`: SwiftUI App life cycle, JSON project format, Swift Testing, String Catalog. (Done 25 Nov 2026: `ios/WeatherConsensus.xcodeproj` with app target `WeatherConsensus` and test target `WeatherConsensusTests`; settings from Xcode 27.2's own templates (main-actor default isolation, approachable concurrency); iPhone only, portrait and landscape; deployment target 27.0; no team ID in the project. Builds with no compiler warnings, runs on the iPhone 18 Pro simulator (iOS 27.2), 1 test passes. Bundle ID is a placeholder, `com.example.WeatherConsensus`, until the owner picks one.)
+- App icon in Icon Composer 2.0 from the design canvas (three overlapping circles); preview both design generations.
 - Weather tab and Consensus tab first, reading the published JSON. Then Places and Settings, then Radar.
 - Living sky, navy cards, Inter, source bar, Certainty ring and dots, as on the design canvas. Use `#Preview(arguments:)` to show every time of day x weather.
 - Adapt to every iPhone, including iPhone Duo outer and inner displays (size classes, state kept on fold).
-- "Updated X hours ago"; Open-Meteo and ECCC credits in About.
+- Storage: the app keeps only the latest JSON file per place (about 6.5 KB each) and deletes older copies when a new one is saved, so phone storage never grows over time.
+- "Updated X hours ago" from `issued_at`; also treat data as stale when it is older than `stale_after_hours` (`docs/JSON_SCHEMA.md`). Open-Meteo and ECCC credits in About.
 - Acceptance: builds clean; previews render in light and dark; simulator screenshots of each tab on a standard iPhone and on iPhone Duo (both displays); VoiceOver reads the Certainty ring.
 
 ## Stage 4: more places, more weather, alerts
@@ -56,4 +64,4 @@ Then:
 - MK Bay Marina coordinates; Lakelse Lake truth station.
 - Terrace forecast at the airport (station) or in town.
 - Add NOAA AI-GFS as source 13?
-- Short Home Screen name ("Consensus"?). Bundle ID. Minimum iOS version.
+- Short Home Screen name ("Consensus"?). Bundle ID.

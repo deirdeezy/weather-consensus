@@ -8,6 +8,8 @@ Checked 24 Nov 2026 against Apple's documentation and release notes (sources at 
   `claude mcp add --transport stdio xcode -- xcrun mcpbridge`
   Verify with `claude mcp list`. If the `claude` command is not installed (the desktop app does not need it), use a project `.mcp.json` with server `xcode`, type `stdio`, command `xcrun`, args `["mcpbridge"]`, and ask the owner to approve it.
 - Do this at the start of Stage 3 (no Xcode project exists before then).
+- This repo uses the project `.mcp.json` route (the desktop app has no `claude` command). Approve the `xcode` server when Claude Code asks; its tools appear in the next session.
+- Xcode 27.2's bridge also offers `XcodeNewProject` and `XcodeNewTarget`; use them for new targets (widgets, notification extensions). From the command line, `xcodebuild -convert-project "Xcode Project" -project X.xcodeproj` converts an older project to the JSON format.
 - Open the project in Xcode before using Xcode tools. Xcode alerts the owner when an agent connects and while it is active.
 - Preview feature (since Xcode 27 beta 5): `sudo xcrun mcp-server enable` runs the MCP server without an open workspace (`xcrun mcp-server status` to check). Early preview; may need an Xcode relaunch or reboot. Ask the owner first. Never use `--unsafe-always-allow-all-agents` (Apple: not recommended at a desk).
 
@@ -25,7 +27,7 @@ Checked 24 Nov 2026 against Apple's documentation and release notes (sources at 
 - Project format: new projects in Xcode 27.2+ use the JSON configuration file (`.xcproj` inside `.xcodeproj`). It is open source, smaller, merge-friendly and meant for agents to edit. Keep it. It only opens in Xcode 27 or later (fine: every Mac used for this project runs Xcode 27). To convert an older project: Project navigator › select project › File inspector › Project Format › JSON.
 - Location: `ios/` in this repo. SwiftUI App life cycle (with the iOS 27 SDK, apps without the scene-based life cycle fail to launch).
 - Swift 6.4. `@State` is now a macro. Use Swift concurrency checking as the default template sets it.
-- Minimum iOS version: decide with the owner at the start of Stage 3.
+- Minimum iOS version: **iOS 27.0** (deployment target `IPHONEOS_DEPLOYMENT_TARGET = 27.0`; owner decision, 25 Nov 2026). iOS 27 runs on the same iPhones as iOS 26 (iPhone 11 and later, SE 2nd and 3rd generation), so no phone is locked out; we build and test against one OS with no availability checks; lowering it later is easy, raising it after release is not. Full reasoning and numbers: `docs/BUILD_PLAN.md`, Stage 3. Sources: https://support.apple.com/en-us/guide/iphone/iphe3fa5df43/ios, https://developer.apple.com/support/app-store/, https://developer.apple.com/news/upcoming-requirements/
 - Xcode 27 runs only on Apple silicon Macs.
 
 ## 4. Previews
