@@ -8,6 +8,7 @@ Saved state for the hourly and nightly jobs on `main` (`.github/workflows/`). Th
 - `<place>/single/<source>/<YYYY-MM-DD>.json`: archived 00 UTC runs (Open-Meteo Single Runs) for days 8 to 14. A `.missing` file marks a run Open-Meteo does not have.
 - `<place>/history/normal_records_<id>.json`: station records for the 1991 to 2020 normal.
 - `<place>/scores.json`: nightly habit fixes, errors and weights per source, lead and variable.
+- `<place>/now.json`: the latest observation at the place's approved station (ECCC real-time SWOB), replaced every hour; places without an approved station have none.
 - `<place>/live_scores.csv`: every stored pull scored against the station by lead (the shadow-run record).
 - `refusals.jsonl`: every refused or failed call, one line each.
 

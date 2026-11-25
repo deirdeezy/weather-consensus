@@ -76,6 +76,39 @@
         }
       }
     },
+    "now": {
+      "description": "Optional. Latest observation at the place's approved station (ECCC real-time). Absent when the place has none. Not a forecast: today's forecast, when added, will not use this name.",
+      "type": "object",
+      "required": ["observed_at", "fetched_at", "source", "station", "temp", "dew_point", "humidity",
+                   "wind_kmh", "wind_dir_deg", "gust_kmh", "pressure_kpa", "pressure_tendency",
+                   "precip_1h_mm", "high_so_far", "low_so_far", "precip_so_far_mm", "so_far_since"],
+      "properties": {
+        "observed_at": {"$ref": "#/$defs/utc"},
+        "fetched_at": {"$ref": "#/$defs/utc"},
+        "source": {"type": "string"},
+        "station": {
+          "type": "object", "required": ["network", "id", "name", "distance_km"],
+          "properties": {"network": {"type": "string"}, "id": {"type": "string"},
+                         "name": {"type": "string"},
+                         "distance_km": {"type": "number", "minimum": 0, "maximum": 10}}
+        },
+        "temp": {"type": ["number", "null"]},
+        "dew_point": {"type": ["number", "null"]},
+        "humidity": {"$ref": "#/$defs/percent"},
+        "wind_kmh": {"type": ["number", "null"], "minimum": 0},
+        "wind_dir_deg": {"type": ["integer", "null"], "minimum": 0, "maximum": 359},
+        "gust_kmh": {"type": ["number", "null"], "minimum": 0},
+        "pressure_kpa": {"type": ["number", "null"]},
+        "pressure_tendency": {"type": ["string", "null"], "description": "rising, falling or steady today; readers must accept other values."},
+        "pressure_change_3h_kpa": {"type": ["number", "null"]},
+        "precip_1h_mm": {"type": ["number", "null"], "minimum": 0},
+        "high_so_far": {"type": ["number", "null"]},
+        "low_so_far": {"type": ["number", "null"]},
+        "precip_so_far_mm": {"type": ["number", "null"], "minimum": 0},
+        "so_far_since": {"$ref": "#/$defs/utc"},
+        "so_far_hours": {"type": "integer", "minimum": 0, "maximum": 24}
+      }
+    },
     "credits": {
       "type": "array", "minItems": 1,
       "items": {

@@ -6,6 +6,8 @@ Inputs (all under data/store/<place>/):
 - state.json and the raw pulls it points to (hourly, backend/wxc/refresh.py):
   the newest run of every deterministic source.
 - history/normal_records_<id>.json: the 1991 to 2020 normal (days 8 to 14).
+- now.json (hourly, backend/wxc/obs.py): the latest station observation, for
+  places with an approved station only. Published as is in "now".
 
 Output: public/<place>.json, described in docs/JSON_SCHEMA.md and checked
 against docs/place-v1.schema.json by the tests.
@@ -32,6 +34,7 @@ from . import certainty as cert
 from . import consensus as cs
 from . import eccc
 from . import horizon as hz
+from . import obs
 from .daily import CLIMATE_DAY_OFFSET_H
 from .refresh import _write_json, iso, load_state, refusal_logger
 from .score import ALL_LEADS, NORMAL, _daily_from_pull
@@ -127,7 +130,7 @@ def _precip(F: pd.Series, st: dict):
 
 
 def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFrame | None,
-          now: int) -> dict:
+          now: int, now_block: dict | None = None) -> dict:
     """The public document for one place. Pure: no reading or writing."""
     pool = cfg["deterministic_pool"]
     issue = issue_date_at(now)
@@ -179,7 +182,7 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
     sources = [{"id": m, "label": labels.get(m, m)} for m in pool if m in shown]
     if NORMAL in shown:
         sources.append({"id": NORMAL, "label": NORMAL_LABEL})
-    return {
+    doc = {
         "schema_version": SCHEMA_VERSION,
         "place": {
             "id": place["id"],
@@ -205,6 +208,9 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
         "days": days,
         "credits": [OPEN_METEO, ECCC],
     }
+    if now_block:  # only for a place with an approved station (backend/wxc/obs.py)
+        doc["now"] = now_block
+    return doc
 
 
 def _with_normal(F: pd.Series, N, T, var: str, lead: int,
@@ -230,6 +236,7 @@ def publish(place: dict, cfg: dict, store: Path, out_dir: Path, now: int | None 
     if not pulls:
         log("publish", "publish", "no saved pulls: run refresh.py first")
         raise RuntimeError("no saved pulls, nothing published")
-    doc = build(place, cfg, scores, pulls, load_normal(store, place), now)
+    doc = build(place, cfg, scores, pulls, load_normal(store, place), now,
+                obs.load_now(store, place))
     _write_json(out_dir / f"{pid}.json", doc)
     return doc

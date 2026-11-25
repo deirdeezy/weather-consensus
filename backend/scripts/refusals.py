@@ -14,6 +14,8 @@ refused runs. Every failed try is one line in the log; kinds:
   used_stale a download failed and the last saved copy was used
   single_run an archived run Open-Meteo does not have
   publish    publish.py could not use something
+  obs        a station observation was not usable or not allowed (obs.py)
+Source "eccc_swob" is the ECCC real-time station feed (limit = HTTP 429 or 503).
 """
 from __future__ import annotations
 

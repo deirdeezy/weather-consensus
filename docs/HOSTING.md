@@ -6,7 +6,7 @@ Everything runs on GitHub for $0: a public repo, GitHub Actions for the jobs, a 
 | Piece | Where | Written by |
 |---|---|---|
 | Code, config, docs | `main` | people |
-| Saved state: refresh state, raw pulls (incl. the ensemble record), Single Runs, the normal, `scores.json`, `live_scores.csv`, `refusals.jsonl` | `data` branch (checked out at `data/store/`) | the workflows |
+| Saved state: refresh state, raw pulls (incl. the ensemble record), Single Runs, the normal, `scores.json`, `live_scores.csv`, the latest station observation (`<place>/now.json`, about 0.6 KB, replaced each hour), `refusals.jsonl` | `data` branch (checked out at `data/store/`) | the workflows |
 | Nightly re-downloads (Previous Runs, ECCC station data) | Actions cache, fallback copy only | nightly workflow |
 | `kitimat.json` | GitHub Pages: `https://deirdeezy.github.io/weather-consensus/kitimat.json` | the workflows (never committed) |
 | Pilot cache (`data/cache/`) | the development Mac only | never pushed |
@@ -18,13 +18,18 @@ Everything runs on GitHub for $0: a public repo, GitHub Actions for the jobs, a 
 ## Jobs
 | Workflow | When (UTC) | Steps | Permissions |
 |---|---|---|---|
-| `refresh.yml` | minute 17 every hour | `refresh.py`, `publish.py`, save `data`, deploy Pages | job 1: `contents: write`; deploy: `pages: write`, `id-token: write` |
+| `refresh.yml` | minute 17 every hour | `refresh.py`, `obs.py`, `publish.py`, save `data`, deploy Pages | job 1: `contents: write`; deploy: `pages: write`, `id-token: write` |
 | `nightly.yml` | 09:47 and 15:47 | `score.py --if-needed`, `publish.py`, save `data`, deploy Pages; re-enable both workflows | job 1: `contents: write`; deploy: `pages: write`, `id-token: write`; keepalive: `actions: write` |
 
 - Both also run by hand (Actions tab, Run workflow). Nightly has a "force" box to rescore.
 - Job bodies are scripts (`backend/ci/hourly.sh`, `nightly.sh`, `save_data.sh`) so they run the same locally.
 - Default token permissions are none (`permissions: {}`); each job asks only for what it needs. The checkout of `main` keeps no credentials.
 - Actions are pinned to commit SHAs (checkout v7.0.1, cache v6.1.0, setup-uv v10.4.0, upload-pages-artifact v5.0.0, deploy-pages v5.0.1; latest releases on 25 Nov 2026).
+
+### Station observations (the "now" block)
+- `obs.py` makes one call an hour per place with an approved station (Kitimat only): ECCC's real-time SWOB on the MSC GeoMet OGC API (`https://api.weather.gc.ca/collections/swob-realtime/items`), hourly records since 06 UTC, only the fields we use (about 6 KB). Raw answers are not kept: only the processed block in `<place>/now.json`.
+- MSC usage policy (https://eccc-msc.github.io/open-data/usage-policy/readme_en, checked 25 Nov 2026): a meaningful User-Agent (ours names the project and this repo, nothing else), only the data you use, no no-cache headers, contact MSC above 86,400 requests a day. We make 24.
+- A refused or empty answer is logged (`eccc_swob`) and the last block stays; the app ages it by `observed_at`. The app still reads only GitHub Pages.
 
 ### Never two runs at once
 Both workflows share one concurrency group (`data-branch`) with `queue: max`: a run waits for the one in progress; up to 100 can wait; none is cancelled. GitHub's default (`queue: single`) would cancel a waiting run when another queues. `save_data.sh` also rebases and retries a refused push (tested locally).

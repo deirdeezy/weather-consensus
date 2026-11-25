@@ -48,8 +48,8 @@ iOS weather app (SwiftUI) that blends up to 12 forecast sources, weights each by
 
 ## Layout
 ```
-backend/wxc/        Python package: daily.py, consensus.py, certainty.py, eccc.py, openmeteo.py
-backend/scripts/    backtest.py (reproduces the pilot), horizon.py, refresh.py, score.py, publish.py, refusals.py
+backend/wxc/        Python package: daily.py, consensus.py, certainty.py, eccc.py, openmeteo.py, obs.py
+backend/scripts/    backtest.py (reproduces the pilot), horizon.py, refresh.py, obs.py, score.py, publish.py, refusals.py
 backend/ci/         job scripts for .github/workflows (hourly.sh, nightly.sh, save_data.sh), local_test.sh
 config/             places.json, sources.json
 data/cache/         pilot downloads (git-ignored)
@@ -68,6 +68,7 @@ uv run python backend/scripts/backtest.py        # must show day 1 high about 1.
 uv run python backend/scripts/backtest.py --align
 uv run python backend/scripts/refresh.py --dry-run  # which sources have a new run
 uv run python backend/scripts/refresh.py         # pull them into data/store/
+uv run python backend/scripts/obs.py             # latest station observation (approved stations only)
 uv run python backend/scripts/score.py           # nightly: station truth, habit fixes, weights
 uv run python backend/scripts/publish.py         # write public/<place>.json (docs/JSON_SCHEMA.md)
 ```

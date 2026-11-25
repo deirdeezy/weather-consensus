@@ -1,5 +1,5 @@
 {
-  "_note": "Forecast point = truth station location, so forecasts and scoring match. Places with status 'later' are not live yet. Fields marked CONFIRM need the owner's answer.",
+  "_note": "Forecast point = truth station location, so forecasts and scoring match. Places with status 'later' are not live yet. Fields marked CONFIRM need the owner's answer. obs_station: the one station whose live observations the place shows (the now block); owner-approved per place, run by ECCC, within about 10 km (backend/wxc/obs.py). Places without it show no observations.",
   "places": [
     {
       "id": "kitimat",
@@ -10,6 +10,7 @@
       "timezone": "America/Vancouver",
       "truth": {"network": "ECCC", "climate_id": "1064324", "station": "Kitimat Forest Ave"},
       "normal": {"climate_id": "1064320", "station": "Kitimat Townsite", "period": "1991-2020"},
+      "obs_station": {"network": "ECCC", "climate_id": "1064324", "name": "Kitimat Forest Ave"},
       "status": "stage1"
     },
     {
