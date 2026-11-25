@@ -18,6 +18,9 @@ ios/**/xcuserdata/
 ios/**/build/
 DerivedData/
 
+# Simulator screenshots for review (never committed)
+ios/screenshots/
+
 # Claude Code local settings
 .claude/settings.local.json
 

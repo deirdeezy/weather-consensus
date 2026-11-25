@@ -1,20 +1,78 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "A newer forecast needs an app update. Showing the last saved forecast." : {
-
-    },
-    "Certainty %@ · %@" : {
+    "%@. High %@, low %@. Precipitation %@, chance %@." : {
+      "comment" : "VoiceOver label for a day row: date, high, low, precipitation and chance",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Certainty %1$@ · %2$@"
+            "value" : "%1$@. High %2$@, low %3$@. Precipitation %4$@, chance %5$@."
           }
         }
       }
     },
-    "Consensus only" : {
+    "%@: Certainty %@. %@" : {
+      "comment" : "VoiceOver label for the worked Certainty example",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: Certainty %2$@. %3$@"
+          }
+        }
+      }
+    },
+    "%lld of 10 dots: about %lld of every 10 days like this land within 2 degrees Celsius of our high" : {
+      "comment" : "VoiceOver label for the 10 Certainty dots",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of 10 dots: about %2$lld of every 10 days like this land within 2 degrees Celsius of our high"
+          }
+        }
+      }
+    },
+    "14-day forecast" : {
+
+    },
+    "50% to 74%" : {
+
+    },
+    "75% and up" : {
+
+    },
+    "A newer forecast needs an app update. Showing the last saved forecast." : {
+
+    },
+    "About %lld of every 10 days like this land within 2 °C (3.6 °F) of our high." : {
+      "comment" : "Shown under an open day row"
+    },
+    "Certainty" : {
+
+    },
+    "Certainty %lld percent, %@ tier" : {
+      "comment" : "VoiceOver label for the Certainty ring",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Certainty %1$lld percent, %2$@ tier"
+          }
+        }
+      }
+    },
+    "Certainty not available" : {
+
+    },
+    "Chance of 1 mm+" : {
+
+    },
+    "Consensus" : {
+
+    },
+    "Consensus only: no station here, so these numbers are not checked locally." : {
 
     },
     "Could not load the forecast." : {
@@ -29,21 +87,26 @@
     "Data" : {
 
     },
-    "Forecast" : {
+    "Done" : {
+
+    },
+    "Every day is a consensus of up to 12 forecast sources, weighted by how well each has done here. The ring is the chance the high lands within 2 °C (3.6 °F) of our number." : {
+
+    },
+    "HOW THE SOURCES WERE WEIGHTED FOR THE HIGH" : {
 
     },
     "High" : {
       "comment" : "Certainty tier, 75% and up"
     },
-    "High %@ · Low %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "High %1$@ · Low %2$@"
-          }
-        }
-      }
+    "How it works ›" : {
+
+    },
+    "How your forecast is made, source by source. Coming next." : {
+
+    },
+    "Kitimat for now. More places come in Stage 4." : {
+
     },
     "Low" : {
       "comment" : "Certainty tier, under 50%"
@@ -51,10 +114,10 @@
     "Medium" : {
       "comment" : "Certainty tier, 50 to 74%"
     },
-    "Next 14 days" : {
+    "No forecast yet" : {
 
     },
-    "No forecast yet" : {
+    "No source weights for this day" : {
 
     },
     "Offline." : {
@@ -63,20 +126,46 @@
     "Offline. Showing the last saved forecast." : {
 
     },
-    "Precipitation %@ · Chance %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Precipitation %1$@ · Chance %2$@"
-          }
-        }
-      }
+    "Opens the Consensus tab" : {
+
+    },
+    "Places" : {
+
+    },
+    "Places, units, alerts and look will live here." : {
+
+    },
+    "Precipitation" : {
+
     },
     "Pull down to try again." : {
 
     },
-    "Stale: no new forecast run in over %lld hours" : {
+    "Radar" : {
+
+    },
+    "Radar comes in a later step." : {
+
+    },
+    "Settings" : {
+
+    },
+    "Shows how each source was weighted" : {
+
+    },
+    "Sources for the high: %@" : {
+      "comment" : "VoiceOver label for the source bar; the list is source names with their share"
+    },
+    "Sources hidden" : {
+
+    },
+    "Sources shown" : {
+
+    },
+    "Stale: no new forecast data in over %lld hours. Numbers may be out of date." : {
+
+    },
+    "Tap a day for its sources" : {
 
     },
     "This forecast needs an app update." : {
@@ -106,6 +195,15 @@
       }
     },
     "Updated less than an hour ago" : {
+
+    },
+    "Weather" : {
+
+    },
+    "means about %lld of every 10 days like this land within 2 °C" : {
+
+    },
+    "under 50%" : {
 
     }
   },
