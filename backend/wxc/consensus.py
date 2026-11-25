@@ -80,3 +80,64 @@ def consensus_trailing_mae(cons: pd.Series, obs: pd.Series, lead: int) -> pd.Ser
 def spread_reference(spread: pd.Series, lead: int) -> pd.Series:
     """Typical source disagreement over the last 60 days at this lead."""
     return _trailing(spread, lead, WEIGHT_DAYS, 20)
+
+
+# --- Live use: the same numbers as above, for one issue date ----------------
+
+def _as_of_frame(F: pd.DataFrame, obs: pd.Series, issue, lead: int):
+    """Continuous daily index up to the target date; observations from the
+    issue date on are hidden, so nothing unknown at issue time can leak in."""
+    target = issue + pd.Timedelta(days=lead).to_pytimedelta()
+    start = min(F.index.min(), obs.index.min())
+    idx = pd.Index(pd.date_range(start, target, freq="D").date)
+    F = F.reindex(idx)
+    obs = obs.reindex(idx)
+    obs = obs.where(pd.Series(idx < issue, index=idx))
+    return F, obs, target
+
+
+def temperature_stats(F: pd.DataFrame, obs: pd.Series, lead: int, issue) -> dict:
+    """Habit fix and mean squared error per source, plus the consensus's own
+    recent miss and usual disagreement, as known on the issue date for a
+    forecast `lead` days ahead. Same windows as temperature_consensus."""
+    F, obs, target = _as_of_frame(F, obs, issue, lead)
+    E = F.sub(obs, axis=0)
+    bias = _trailing(E, lead, BIAS_DAYS, 10)
+    mse = _trailing((E - bias).pow(2), lead, WEIGHT_DAYS, 20)
+    tc = temperature_consensus(F, obs, lead)
+    return {"habit_fix": bias.loc[target], "mse": mse.loc[target],
+            "consensus_mae": consensus_trailing_mae(tc.consensus, obs, lead).loc[target],
+            "spread_ref": spread_reference(tc.spread, lead).loc[target]}
+
+
+def precip_stats(F: pd.DataFrame, obs: pd.Series, lead: int, issue) -> dict:
+    """Mean absolute error per source as known on the issue date."""
+    F, obs, target = _as_of_frame(F, obs, issue, lead)
+    mae = _trailing(F.sub(obs, axis=0).abs(), lead, WEIGHT_DAYS, 20)
+    return {"mae": mae.loc[target]}
+
+
+def weights_from_error(err: pd.Series, present: pd.Series | None = None,
+                       guardrails: bool = True) -> pd.Series:
+    """Inverse-error weights among sources that have a forecast, with guardrails."""
+    w = 1.0 / err
+    if present is not None:
+        w = w.where(present)
+    w = w.where(np.isfinite(w))
+    if w.notna().sum() == 0:
+        return w
+    w = w / w.sum()
+    return apply_guardrails(w.to_frame().T).iloc[0] if guardrails else w
+
+
+def blend(forecasts: pd.Series, habit_fix: pd.Series, mse: pd.Series,
+          guardrails: bool = True) -> tuple[float, float, pd.Series]:
+    """Consensus and spread for one day from today's forecasts and the stats.
+    Matches temperature_consensus row by row."""
+    fbc = forecasts - habit_fix.reindex(forecasts.index)
+    w = weights_from_error(mse.reindex(forecasts.index), fbc.notna(), guardrails)
+    if w.notna().sum() == 0:
+        return float("nan"), float("nan"), w
+    cons = float((fbc * w).sum())
+    spread = float(np.sqrt((w * (fbc - cons).pow(2)).sum()))
+    return cons, spread, w

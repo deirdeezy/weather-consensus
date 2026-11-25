@@ -128,20 +128,27 @@ def load_state(store: Path, place_id: str) -> dict:
     return json.loads(p.read_text()) if p.exists() else {}
 
 
-def refresh(place: dict, cfg: dict, store: Path, now: int | None = None,
-            get=om.get_json, echo=print, dry_run: bool = False) -> dict:
-    """One refresh pass for one place. Returns what was pulled and what failed."""
-    now = int(time.time() if now is None else now)
-    pid = place["id"]
+def refusal_logger(store: Path, place_id: str, echo=print):
+    """log(source, kind, detail): append one line to data/store/refusals.jsonl."""
     refusals = store / "refusals.jsonl"
 
-    def log(source: str, kind: str, detail: str) -> None:
-        rec = {"time": iso(int(time.time())), "place": pid, "source": source,
+    def log(source: str, kind: str, detail) -> None:
+        rec = {"time": iso(int(time.time())), "place": place_id, "source": source,
                "kind": kind, "detail": str(detail)[:300]}
         refusals.parent.mkdir(parents=True, exist_ok=True)
         with refusals.open("a") as f:
             f.write(json.dumps(rec) + "\n")
         echo(f"  refused  {source}: {kind}: {rec['detail']}")
+
+    return log
+
+
+def refresh(place: dict, cfg: dict, store: Path, now: int | None = None,
+            get=om.get_json, echo=print, dry_run: bool = False) -> dict:
+    """One refresh pass for one place. Returns what was pulled and what failed."""
+    now = int(time.time() if now is None else now)
+    pid = place["id"]
+    log = refusal_logger(store, pid, echo)
 
     sources = sources_from_config(cfg)
     meta = read_meta(sources, get, log)

@@ -49,6 +49,12 @@ Average miss in deg C (1 deg C = 1.8 deg F).
 - Disagreement term (exponent 0.25): small gain (Brier highs 0.1796 to 0.1792; lows 0.1427 to 0.1388). Exponent 0.5 hurt highs.
 - **Limitation**: within one lead day, Certainty barely beats a fixed rate for that lead. It tells you how far ahead you can trust the forecast, honestly, but does not yet pick out individual shaky days well. Candidate fix for later: ensemble spread. Test before shipping.
 
+## Live use (Stage 1)
+- `backend/scripts/score.py` (nightly) pulls ECCC daily and 200 days of Open-Meteo Previous Runs (days 1 to 7), then writes each source's habit fix, error and weight per lead to `data/store/<place>/scores.json`.
+- The live numbers use the same code and windows as the backtest. Check (`tests/test_score.py`, and 42 issue dates on pilot history): the live blend equals the backtest Consensus to within 0.0000000002 deg C. Station data from the issue day on is hidden, so nothing unknown at issue time is used.
+- History coverage: Meteo-France has days 1 to 3 only, UK Met Office days 1 to 4. Past that they get no weight (same as the pilot).
+- First live run (issue date 24 Nov 2026), day 1 high weights: UKMO 17%, ICON 15%, ECMWF AIFS 15%, GEM 14%, ECMWF IFS 10%, Meteo-France 9%, GFS 9%, JMA 7%, CMA 4%.
+
 ## Not yet tested
 - Days 8 to 14 blend with ensembles and the normal (pilot tested ECMWF alone vs the normal: skill to about day 9, gone by day 14).
 - Places other than Kitimat.

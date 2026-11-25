@@ -64,4 +64,5 @@ uv run python backend/scripts/backtest.py        # must show day 1 high about 1.
 uv run python backend/scripts/backtest.py --align
 uv run python backend/scripts/refresh.py --dry-run  # which sources have a new run
 uv run python backend/scripts/refresh.py         # pull them into data/store/
+uv run python backend/scripts/score.py           # nightly: station truth, habit fixes, weights
 ```

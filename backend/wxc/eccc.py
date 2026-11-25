@@ -14,6 +14,9 @@ import urllib.request
 import pandas as pd
 
 BASE = "https://api.weather.gc.ca/collections"
+# Attribution statement from https://eccc-msc.github.io/open-data/licence/readme_en/ (v2.1.1, Aug 2026)
+CREDIT = ("Contains information licenced under the Data Server End-use Licence of "
+          "Environment and Climate Change Canada.")
 
 
 def daily_url(climate_id: str, start: str, end: str, limit: int = 5000) -> str:
