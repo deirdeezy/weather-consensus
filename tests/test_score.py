@@ -212,3 +212,15 @@ def test_history_calls_use_current_ids_but_store_under_pilot_keys(tmp_path):
     assert (hist / "prev_wild.json").exists() and not (hist / "prev_new_wild.json").exists()
     assert (tmp_path / "kitimat" / "single" / "wild").is_dir()
     assert not (tmp_path / "kitimat" / "single" / "new_wild").exists()
+
+
+def test_already_scored_only_when_yesterdays_station_day_is_in(tmp_path):
+    assert not sc.already_scored(tmp_path, "kitimat", ISSUE)
+    run(tmp_path)  # fake station data runs through ISSUE - 1
+    assert sc.already_scored(tmp_path, "kitimat", ISSUE)
+    assert not sc.already_scored(tmp_path, "kitimat", ISSUE + dt.timedelta(days=1))
+    p = tmp_path / "kitimat" / "scores.json"
+    s = json.loads(p.read_text())
+    s["obs_through"] = "2026-11-23"  # ECCC had not posted yesterday yet
+    p.write_text(json.dumps(s))
+    assert not sc.already_scored(tmp_path, "kitimat", ISSUE)

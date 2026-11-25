@@ -1,0 +1,6 @@
+# Fetched again every night by score.py; kept in the Actions cache instead.
+*/history/prev_*.json
+*/history/eccc_daily_*.json
+# Half-written files and Mac clutter
+*.tmp
+.DS_Store

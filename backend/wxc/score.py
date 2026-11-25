@@ -227,6 +227,18 @@ def live_scores(store: Path, place_id: str, obs: pd.DataFrame) -> pd.DataFrame:
 
 # --- the nightly job --------------------------------------------------------
 
+def already_scored(store: Path, place_id: str, issue: dt.date) -> bool:
+    """True when scores.json is for this issue date and already has the
+    station's day before it. The nightly workflow runs twice; the second run
+    only rescores if ECCC had not posted yesterday's values by the first."""
+    p = store / place_id / "scores.json"
+    if not p.exists():
+        return False
+    s = json.loads(p.read_text())
+    done = (issue - dt.timedelta(days=1)).isoformat()
+    return s.get("issue_date") == issue.isoformat() and (s.get("obs_through") or "") >= done
+
+
 def score(place: dict, cfg: dict, store: Path, issue: dt.date | None = None,
           get=om.get_json, fetch_obs=eccc.fetch_daily,
           fetch_normal=hz.fetch_normal_records, echo=print) -> dict:
