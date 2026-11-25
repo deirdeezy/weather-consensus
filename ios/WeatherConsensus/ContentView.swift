@@ -1,27 +1,33 @@
 import SwiftUI
 import UIKit
 
-/// App shell: tabs Weather, Radar, Consensus, Places (locked). Weather and Consensus are built;
-/// the gear on Weather opens Settings (a placeholder for now).
+/// App shell: tabs Weather, Radar, Consensus, Places (locked). Weather, Consensus and Places are built;
+/// the gear on Weather opens Settings. The settings (units, living sky) flow to every screen from here.
 struct ContentView: View {
     enum TabID: String, Hashable {
         case weather, radar, consensus, places
     }
 
     @State private var model: ForecastScreenModel
+    @State private var settings: AppSettings
     // Kept per scene, so the open tab survives folding and unfolding iPhone Duo and app relaunches.
     @SceneStorage("selectedTab") private var selection: TabID = .weather
     @State private var showSettings = false
+    @State private var settingsPath: [SettingsPage] = []
 
-    init(model: ForecastScreenModel = ContentView.makeModel()) {
+    init(model: ForecastScreenModel = ContentView.makeModel(), settings: AppSettings = AppSettings()) {
         _model = State(initialValue: model)
+        _settings = State(initialValue: settings)
     }
 
     var body: some View {
         TabView(selection: $selection) {
             Tab(value: TabID.weather) {
                 WeatherScreen(model: model,
-                              openSettings: { showSettings = true },
+                              openSettings: {
+                                  settingsPath = []
+                                  showSettings = true
+                              },
                               openConsensus: { selection = .consensus })
             } label: {
                 Label("Weather", systemImage: "cloud.sun")
@@ -38,19 +44,27 @@ struct ContentView: View {
                 Label { Text("Consensus") } icon: { Image(uiImage: ConsensusGlyph.image) }
             }
             Tab(value: TabID.places) {
-                PlaceholderScreen(title: String(localized: "Places"), systemImage: "mappin.and.ellipse",
-                                  message: String(localized: "Kitimat for now. More places are coming."))
+                PlacesScreen(model: model, openWeather: { selection = .weather })
             } label: {
                 Label("Places", systemImage: "mappin.and.ellipse")
             }
         }
         .tabViewStyle(.sidebarAdaptable)
         .sheet(isPresented: $showSettings) {
-            SettingsScreen()
+            SettingsScreen(model: model, settings: settings, path: $settingsPath) { tab in
+                showSettings = false
+                selection = tab
+            }
         }
+        .environment(\.unitChoice, settings.units)
+        .environment(\.livingSky, settings.livingSky)
         #if DEBUG
         .onAppear {
             if let tab = DebugLaunch.tab { selection = tab }
+            if let page = DebugLaunch.settingsPath {
+                settingsPath = page
+                showSettings = true
+            }
         }
         #endif
     }
@@ -106,23 +120,6 @@ struct PlaceholderScreen: View {
     }
 }
 
-/// Settings placeholder, opened by the gear on Weather.
-struct SettingsScreen: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            PlaceholderScreen(title: String(localized: "Settings"), systemImage: "gearshape",
-                              message: String(localized: "Places, units, alerts and look will live here."))
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
-                    }
-                }
-        }
-    }
-}
-
 /// The Consensus tab icon from the canvas: three overlapping circles, drawn once as a template image.
 enum ConsensusGlyph {
     static let image: UIImage = {
@@ -145,6 +142,9 @@ enum ConsensusGlyph {
 /// - `-offline`: with `-fixture`, every refresh fails as offline.
 /// - `-now 2026-11-25T16:30:00Z`: pretend it is this time (for the stale-data case).
 /// - `-tab consensus`: open on that tab.
+/// - `-settings` (or `-settings about`, `privacy`, `acknowledgements`): open the Settings sheet, on that page.
+/// Units and the living sky can be set for one run with the standard defaults arguments, for example
+/// `-temperatureUnit fahrenheit -rainUnit inches -livingSky NO` (not saved).
 enum DebugLaunch {
     static var arguments: [String] { ProcessInfo.processInfo.arguments }
 
@@ -157,6 +157,18 @@ enum DebugLaunch {
     static var tab: ContentView.TabID? {
         guard let index = arguments.firstIndex(of: "-tab"), arguments.indices.contains(index + 1) else { return nil }
         return ContentView.TabID(rawValue: arguments[index + 1])
+    }
+
+    /// `-settings`, `-settings about`: the Settings sheet, opened on launch at that page.
+    static var settingsPath: [SettingsPage]? {
+        guard let index = arguments.firstIndex(of: "-settings") else { return nil }
+        guard arguments.indices.contains(index + 1), let page = SettingsPage(rawValue: arguments[index + 1]) else { return [] }
+        switch page {
+        case .about: return [.about]
+        case .privacy: return [.about, .privacy]
+        case .acknowledgements: return [.about, .acknowledgements]
+        case .interLicence: return [.about, .acknowledgements, .interLicence]
+        }
     }
 
     static var now: Date? {

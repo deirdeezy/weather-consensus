@@ -10,6 +10,7 @@ struct ConsensusScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.nowOverride) private var nowOverride
+    @Environment(\.livingSky) private var livingSky
 
     /// Same rule as the Weather tab: size classes only, never device or orientation.
     private var twoColumns: Bool {
@@ -18,7 +19,7 @@ struct ConsensusScreen: View {
 
     var body: some View {
         TimelineView(.everyMinute) { context in
-            let style = SkyStyle.current(for: model.forecast, now: nowOverride ?? context.date)
+            let style = SkyStyle.current(for: model.forecast, now: nowOverride ?? context.date, living: livingSky)
             ScrollView {
                 content(style: style)
                     .padding(.horizontal, 16)
@@ -253,14 +254,14 @@ nonisolated enum ConsensusText {
     }
 
     /// "About 9 of 10 days like this land within 2 °C."
-    static func exampleSentence(_ day: PlaceForecast.Day) -> String {
-        String(localized: "About \(CertaintyText.filledDots(day.certainty)) of 10 days like this land within 2\u{00A0}°C.",
+    static func exampleSentence(_ day: PlaceForecast.Day, unit: TemperatureUnit = .celsius) -> String {
+        String(localized: "About \(CertaintyText.filledDots(day.certainty)) of 10 days like this land within \(CertaintyText.band(unit)).",
                comment: "Step 5 worked example, under the 10 dots")
     }
 
     /// VoiceOver for a worked example: date, ring and dots.
-    static func exampleLabel(_ day: PlaceForecast.Day) -> String {
-        "\(ValueText.spokenDate(day.date)). \(CertaintyText.ringLabel(day)). \(CertaintyText.dotsLabel(day))"
+    static func exampleLabel(_ day: PlaceForecast.Day, unit: TemperatureUnit = .celsius) -> String {
+        "\(ValueText.spokenDate(day.date)). \(CertaintyText.ringLabel(day)). \(CertaintyText.dotsLabel(day, unit: unit))"
     }
 
     static let chartHead = String(localized: "How sure we are, day by day").uppercased()
@@ -635,6 +636,7 @@ private struct WeightStep: View {
 private struct SureStep: View {
     let facts: ConsensusFacts
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.unitChoice) private var units
 
     var body: some View {
         StepCard(number: 5, title: ConsensusText.sureTitle, text: ConsensusText.sureText) {
@@ -658,14 +660,14 @@ private struct SureStep: View {
                 Text(verbatim: ConsensusText.exampleTitle(day))
                     .font(.inter(13, .extraBold, relativeTo: .footnote))
                 CertaintyDots(day: day, fill: true)
-                Text(verbatim: ConsensusText.exampleSentence(day))
+                Text(verbatim: ConsensusText.exampleSentence(day, unit: units.temperature))
                     .font(.inter(12, .regular, relativeTo: .caption))
                     .foregroundStyle(Color(Palette.textSecondary))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: ConsensusText.exampleLabel(day)))
+        .accessibilityLabel(Text(verbatim: ConsensusText.exampleLabel(day, unit: units.temperature)))
     }
 }
 

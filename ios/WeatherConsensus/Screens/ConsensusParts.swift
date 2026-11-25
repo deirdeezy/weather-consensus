@@ -96,6 +96,7 @@ struct CertaintyDots: View {
     var fill = false
     @ScaledMetric(relativeTo: .caption) private var dot: CGFloat = 7
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.unitChoice) private var units
 
     var body: some View {
         let filled = CertaintyText.filledDots(day.certainty)
@@ -114,7 +115,7 @@ struct CertaintyDots: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(CertaintyText.dotsLabel(day))
+        .accessibilityLabel(CertaintyText.dotsLabel(day, unit: units.temperature))
     }
 
     private struct DotSize: ViewModifier {

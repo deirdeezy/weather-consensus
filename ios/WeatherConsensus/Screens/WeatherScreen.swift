@@ -17,6 +17,7 @@ struct WeatherScreen: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.nowOverride) private var nowOverride
+    @Environment(\.livingSky) private var livingSky
 
     /// Two columns when there is width to spare (iPhone Duo inner display, large phones in landscape)
     /// or little height (any phone in landscape). Size classes only, never device or orientation.
@@ -92,7 +93,7 @@ struct WeatherScreen: View {
     }
 
     private func skyStyle(now: Date) -> SkyStyle {
-        SkyStyle.current(for: model.forecast, now: now)
+        SkyStyle.current(for: model.forecast, now: now, living: livingSky)
     }
 }
 
@@ -115,15 +116,19 @@ struct Card<Content: View>: View {
 }
 
 /// The place name on the sky, on a soft pill so it keeps 6:1 or more on every sky (owner approved, step 3b).
+/// Also the page title on Places (no pin).
 struct PlaceTitlePill: View {
     let name: String?
     let style: SkyStyle
+    var showsPin = true
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "mappin")
-                .font(.inter(17, .bold, relativeTo: .title2))
-                .accessibilityHidden(true)
+            if showsPin {
+                Image(systemName: "mappin")
+                    .font(.inter(17, .bold, relativeTo: .title2))
+                    .accessibilityHidden(true)
+            }
             Text(verbatim: name ?? "")
                 .font(.inter(24, .extraBold, relativeTo: .title))
                 .tracking(-0.24)
@@ -240,6 +245,7 @@ struct CertaintyExplainer: View {
     let forecast: PlaceForecast
     let openConsensus: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.unitChoice) private var units
 
     var body: some View {
         let big = dynamicTypeSize.isAccessibilitySize
@@ -294,7 +300,7 @@ struct CertaintyExplainer: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 CertaintyDots(day: day)
-                Text("means about \(filled) of every 10 days like this land within 2\u{00A0}°C")
+                Text("means about \(filled) of every 10 days like this land within \(CertaintyText.band(units.temperature))")
                     .font(.inter(12, .regular, relativeTo: .caption))
                     .foregroundStyle(Color(Palette.textSecondary))
                     .fixedSize(horizontal: false, vertical: true)
@@ -304,7 +310,7 @@ struct CertaintyExplainer: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.06)))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(ValueText.spokenDate(day.date)): Certainty \(ValueText.percent(day.certainty)). \(CertaintyText.dotsLabel(day))",
+        .accessibilityLabel(Text("\(ValueText.spokenDate(day.date)): Certainty \(ValueText.percent(day.certainty)). \(CertaintyText.dotsLabel(day, unit: units.temperature))",
                                  comment: "VoiceOver label for the worked Certainty example"))
     }
 

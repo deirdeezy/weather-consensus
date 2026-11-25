@@ -12,11 +12,47 @@
         }
       }
     },
+    "%@ and %@" : {
+      "comment" : "About, Forecasts: a list of agencies, then the last one",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ and %2$@"
+          }
+        }
+      }
+    },
     "%@ has no weather station of its own, so its weights are borrowed and its numbers are not checked here." : {
       "comment" : "Step 2 text for a place with no station. The value is the place name."
     },
+    "%@ high / low" : {
+      "comment" : "Places card tile label. The value is a short weekday."
+    },
     "%@ normal (1991 to 2020)" : {
       "comment" : "Source name: the place's 1991 to 2020 climate normal. The value is the place name."
+    },
+    "%@ weather station, %@" : {
+      "comment" : "About, Checked against. Values: the station's network (ECCC), the station name.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ weather station, %2$@"
+          }
+        }
+      }
+    },
+    "%@'s Certainty %@" : {
+      "comment" : "Places card. Values: a weekday name, the Certainty percent.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@'s Certainty %2$@"
+          }
+        }
+      }
     },
     "%@'s consensus" : {
       "comment" : "Step 4 heading over day 1's source bar. The value is a weekday."
@@ -57,13 +93,19 @@
     "%lld forecast models" : {
       "comment" : "Step 1 heading over the model chips; counted from the file"
     },
-    "%lld of 10 dots: about %lld of every 10 days like this land within 2 degrees Celsius of our high" : {
+    "%lld models" : {
+      "comment" : "Settings, Sources row; counted from the file"
+    },
+    "%lld models and the normal" : {
+      "comment" : "Settings, Sources row; counted from the file"
+    },
+    "%lld of 10 dots: about %lld of every 10 days like this land within %@ of our high" : {
       "comment" : "VoiceOver label for the 10 Certainty dots",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$lld of 10 dots: about %2$lld of every 10 days like this land within 2 degrees Celsius of our high"
+            "value" : "%1$lld of 10 dots: about %2$lld of every 10 days like this land within %3$@ of our high"
           }
         }
       }
@@ -71,8 +113,20 @@
     "1 forecast model" : {
 
     },
+    "1 model" : {
+
+    },
+    "1 model and the normal" : {
+
+    },
     "14-day forecast" : {
 
+    },
+    "2 degrees Celsius" : {
+      "comment" : "VoiceOver: the Certainty band"
+    },
+    "2 degrees Celsius (3.6 degrees Fahrenheit)" : {
+      "comment" : "VoiceOver: the Certainty band, deg F chosen"
     },
     "50% to 74%" : {
 
@@ -83,8 +137,31 @@
     "A newer forecast needs an app update. Showing the last saved forecast." : {
 
     },
-    "About %lld of 10 days like this land within 2 °C." : {
-      "comment" : "Step 5 worked example, under the 10 dots"
+    "About" : {
+
+    },
+    "About %lld of 10 days like this land within %@." : {
+      "comment" : "Step 5 worked example, under the 10 dots",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "About %1$lld of 10 days like this land within %2$@."
+          }
+        }
+      }
+    },
+    "About Weather Consensus" : {
+
+    },
+    "Acknowledgements" : {
+
+    },
+    "CC BY 4.0 licence" : {
+
+    },
+    "Celsius" : {
+
     },
     "Certainty" : {
 
@@ -100,6 +177,9 @@
         }
       }
     },
+    "Certainty always means the chance the high lands within 2 °C (3.6 °F) of our number." : {
+      "comment" : "Settings, under the units"
+    },
     "Certainty by day: %@" : {
       "comment" : "VoiceOver label for the 14-day Certainty chart; the list is dates with their Certainty"
     },
@@ -109,8 +189,14 @@
     "Chance of 1 mm+" : {
 
     },
+    "Changes" : {
+
+    },
     "Checked against" : {
       "comment" : "Step 2 tile label: the truth station"
+    },
+    "Checked against %@" : {
+      "comment" : "Places card: the station the place is checked against. The value is the station and its network."
     },
     "China CMA" : {
       "comment" : "Source name: China Meteorological Administration"
@@ -121,7 +207,13 @@
     "Consensus" : {
 
     },
+    "Consensus only" : {
+      "comment" : "A place with no station of its own"
+    },
     "Consensus only: no station here, so these numbers are not checked locally." : {
+
+    },
+    "Contains information licenced under the Data Server End-use Licence of Environment and Climate Change Canada. Station observations and the 1991 to 2020 climate normals come from ECCC." : {
 
     },
     "Could not load the forecast." : {
@@ -139,14 +231,26 @@
     "Data" : {
 
     },
+    "Data and credits" : {
+
+    },
     "Day %lld" : {
       "comment" : "Lead day, 1 to 14"
+    },
+    "Delivered by" : {
+
     },
     "Done" : {
 
     },
     "Dry" : {
       "comment" : "Day row: the forecast precipitation is exactly zero"
+    },
+    "ECCC Data Servers End-use Licence" : {
+
+    },
+    "ECCC climate normals, 1991 to 2020" : {
+
     },
     "ECMWF" : {
       "comment" : "Source name, do not translate"
@@ -156,6 +260,9 @@
     },
     "Env. Canada" : {
       "comment" : "Source name: Environment and Climate Change Canada's GEM model"
+    },
+    "Environment and Climate Change Canada" : {
+
     },
     "Every day blends several forecast sources, weighted by how well each has done here. The ring is the chance the high lands within 2 °C (3.6 °F) of our number." : {
 
@@ -169,7 +276,22 @@
     "Expanded" : {
 
     },
+    "Fahrenheit" : {
+
+    },
+    "Forecasts" : {
+
+    },
     "Further out, the consensus shifts" : {
+
+    },
+    "GitHub Pages: data collection" : {
+
+    },
+    "GitHub Privacy Statement" : {
+
+    },
+    "GitHub hosts the forecast file and, like any web host, may keep standard server logs. GitHub says that when a GitHub Pages site is visited, the visitor's IP address is logged and stored for security purposes. Your phone's internet address is part of every request it makes." : {
 
     },
     "High" : {
@@ -187,29 +309,74 @@
     "How 1 source reached consensus" : {
 
     },
+    "How Consensus works" : {
+
+    },
     "How it works ›" : {
 
     },
     "How sure we are, day by day" : {
 
     },
+    "If this policy changes, the new version comes with an app update." : {
+
+    },
+    "If you have turned on Share With App Developers (Settings, Privacy & Security, Analytics & Improvements), Apple may share crash reports and usage statistics for this app with its developer. Test builds from TestFlight send crash reports to the developer. That is Apple's feature, under Apple's privacy policy; the app adds nothing of its own." : {
+
+    },
+    "In short" : {
+
+    },
     "Japan JMA" : {
       "comment" : "Source name: Japan Meteorological Agency"
     },
-    "Kitimat for now. More places are coming." : {
+    "Just the forecast" : {
 
+    },
+    "Kitimat" : {
+      "comment" : "Place name"
+    },
+    "Last updated 25 November 2026" : {
+      "comment" : "Privacy policy date"
     },
     "Latest scores" : {
       "comment" : "Step 2 tile label: the date of the latest scores"
     },
+    "Links in the app, such as credits and licences, open in your browser. Those sites have their own privacy policies." : {
+
+    },
+    "Living sky" : {
+
+    },
+    "Location, links and crash reports" : {
+
+    },
+    "Look and feel" : {
+
+    },
     "Low" : {
       "comment" : "Certainty tier, under 50%"
+    },
+    "Made in Kitimat, BC" : {
+      "comment" : "About footer"
     },
     "Many forecasts in. One consensus out." : {
       "comment" : "Consensus tab hero title. Never a fixed number of sources."
     },
+    "Many forecasts. One answer." : {
+
+    },
     "Medium" : {
       "comment" : "Certainty tier, 50 to 74%"
+    },
+    "More" : {
+
+    },
+    "More places are coming." : {
+      "comment" : "Places tab, under the place list"
+    },
+    "Most weather apps show you one computer model, wrapped in ads. Weather Consensus checks many forecasts against what really happened here, gives the most accurate ones the biggest say, and tells you how sure it is." : {
+      "comment" : "About, Why it exists"
     },
     "Most weather apps show you one computer model. We pull every major one and weigh them by track record into one consensus. %@ has no weather station of its own, so its weights are borrowed and not checked here. Then we tell you how sure we are." : {
       "comment" : "Consensus tab hero text for a place with no station. The value is the place name."
@@ -223,22 +390,40 @@
     "NOAA GFS" : {
       "comment" : "Source name, do not translate"
     },
+    "No account" : {
+
+    },
+    "No ads" : {
+
+    },
+    "No ads, no tracking, no account" : {
+
+    },
     "No forecast yet" : {
 
     },
     "No source weights for this day" : {
 
     },
+    "No station here, so these numbers are not checked locally." : {
+      "comment" : "Places card, place with no station"
+    },
+    "No tracking" : {
+
+    },
+    "Normals" : {
+
+    },
     "Not every model runs two weeks ahead, and each one's track record changes with the range, so the blend changes from day to day." : {
       "comment" : "Step 4 text under the day 1, 7 and 13 bars"
     },
-    "Odds that %@'s high lands within 2 °C of %@." : {
-      "comment" : "Opened day row, beside the big Certainty ring. First value is a weekday name, second the forecast high.",
+    "Odds that %@'s high lands within %@ of %@." : {
+      "comment" : "Opened day row, beside the big Certainty ring. Values: a weekday name, the Certainty band (2 °C), the forecast high.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Odds that %1$@'s high lands within 2 °C of %2$@."
+            "value" : "Odds that %1$@'s high lands within %2$@ of %3$@."
           }
         }
       }
@@ -260,17 +445,37 @@
         }
       }
     },
+    "On: the background follows the time of day at the place. Off: a calm, fixed sky." : {
+      "comment" : "Settings, under the Living sky switch"
+    },
+    "Open-Meteo, under CC BY 4.0" : {
+
+    },
+    "Opens in your browser" : {
+
+    },
     "Opens the Consensus tab" : {
 
     },
-    "Out of 10 days like this, about %lld land within 2 °C of our forecast high." : {
-      "comment" : "Opened day row, under the 10 dots"
+    "Opens the Places tab" : {
+
+    },
+    "Opens the Weather tab" : {
+
+    },
+    "Out of 10 days like this, about %lld land within %@ of our forecast high." : {
+      "comment" : "Opened day row, under the 10 dots",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Out of 10 days like this, about %1$lld land within %2$@ of our forecast high."
+          }
+        }
+      }
     },
     "Places" : {
-
-    },
-    "Places, units, alerts and look will live here." : {
-
+      "comment" : "Places tab title"
     },
     "Plus the normal" : {
       "comment" : "Step 1 heading over the climate normal chip"
@@ -281,6 +486,9 @@
     "Precipitation %@" : {
       "comment" : "VoiceOver, day row: precipitation amount"
     },
+    "Privacy policy" : {
+
+    },
     "Pull down to try again." : {
 
     },
@@ -288,6 +496,15 @@
 
     },
     "Radar comes in a later step." : {
+
+    },
+    "Rain" : {
+
+    },
+    "Read the licence" : {
+
+    },
+    "SIL Open Font License" : {
 
     },
     "SOURCE" : {
@@ -299,6 +516,9 @@
     "Shows the Certainty breakdown and sources for this day" : {
 
     },
+    "Sources" : {
+
+    },
     "Sources for the high: %@" : {
       "comment" : "VoiceOver label for the source bar; the list is source names with their share"
     },
@@ -307,6 +527,9 @@
     },
     "Stale: no new forecast data in over %lld hours. Numbers may be out of date." : {
 
+    },
+    "Station-checked" : {
+      "comment" : "A place whose forecasts are scored against a weather station"
     },
     "Step %lld: %@" : {
       "comment" : "VoiceOver heading for a numbered step on the Consensus tab",
@@ -322,14 +545,35 @@
     "Tap a day for details" : {
 
     },
+    "Temperature" : {
+
+    },
+    "The Inter typeface is used under the SIL Open Font License, Version 1.1. The licence ships inside the app." : {
+
+    },
+    "The app never asks for your location. Places are fixed names, not where you are." : {
+
+    },
+    "The latest forecast file is saved on the phone too, so the forecast still shows when you are offline. Each new file replaces the old one. Deleting the app deletes all of it." : {
+
+    },
     "The ring on every day is the odds its high lands within 2 °C (3.6 °F) of our number. Think of it as days out of 10." : {
       "comment" : "Step 5 text"
     },
     "This forecast needs an app update." : {
 
     },
+    "Those logs are GitHub's. This app has no access to them." : {
+
+    },
+    "To show the forecast, the app downloads a public forecast file for each place from GitHub Pages. The file is the same for everyone. The app adds nothing about you to the request: no account, no device identifier, no location and no settings." : {
+
+    },
     "UK Met Office" : {
       "comment" : "Source name, do not translate"
+    },
+    "Units" : {
+
     },
     "Updated %lld hours ago" : {
       "comment" : "How long ago the backend last got new forecast data. Plural by hour count.",
@@ -356,6 +600,9 @@
     },
     "Updated less than an hour ago" : {
 
+    },
+    "Version %@" : {
+      "comment" : "About, under the name. The value is the version and build."
     },
     "WEIGHT" : {
 
@@ -390,13 +637,53 @@
     "Weather Consensus" : {
 
     },
+    "Weather Consensus %@" : {
+      "comment" : "Settings footer. The value is the version and build, e.g. 1.0 (1)."
+    },
+    "Weather Consensus collects nothing about you. There is no account, no sign-in, no ads, no analytics and no tracking." : {
+
+    },
+    "Weather data by Open-Meteo.com, under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). We change the data: each source's forecasts are corrected for local habits and blended into one consensus." : {
+
+    },
     "What %@ looks like" : {
+
+    },
+    "What GitHub may keep" : {
+
+    },
+    "What stays on your phone" : {
+
+    },
+    "What the app downloads" : {
+
+    },
+    "Why it exists" : {
+
+    },
+    "Your places stay on your phone" : {
+
+    },
+    "Your settings (units and the living sky) and your places are stored only on this phone. The app never sends them anywhere." : {
 
     },
     "consensus" : {
       "comment" : "Small label under the blended bar in the hero diagram"
     },
-    "means about %lld of every 10 days like this land within 2 °C" : {
+    "inches" : {
+
+    },
+    "means about %lld of every 10 days like this land within %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "means about %1$lld of every 10 days like this land within %2$@"
+          }
+        }
+      }
+    },
+    "millimetres" : {
 
     },
     "under 50%" : {

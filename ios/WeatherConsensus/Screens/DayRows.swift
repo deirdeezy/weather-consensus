@@ -41,6 +41,7 @@ struct DayRow: View {
     let toggle: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.unitChoice) private var units
     @ScaledMetric(relativeTo: .body) private var minRowHeight: CGFloat = 62
 
     var body: some View {
@@ -52,7 +53,7 @@ struct DayRow: View {
             }
             .buttonStyle(.plain)
             // One VoiceOver element: the button's own label replaces its children (badge included).
-            .accessibilityLabel(DayRowText.label(day))
+            .accessibilityLabel(DayRowText.label(day, units: units))
             .accessibilityValue(isExpanded ? Text("Expanded") : Text("Collapsed"))
             .accessibilityHint(Text("Shows the Certainty breakdown and sources for this day"))
 
@@ -113,13 +114,13 @@ struct DayRow: View {
     @ViewBuilder
     private var precipitation: some View {
         if day.precipMM == 0 {
-            Text(verbatim: ValueText.rowPrecipitation(day.precipMM))
+            Text(verbatim: ValueText.rowPrecipitation(day.precipMM, in: units.rain))
                 .font(.inter(11.5, .semibold, relativeTo: .caption))
                 .foregroundStyle(Color(Palette.textSecondary))
         } else {
             HStack(spacing: 3) {
                 Image(systemName: "drop.fill").font(.system(size: 9)).accessibilityHidden(true)
-                Text(verbatim: ValueText.rowPrecipitation(day.precipMM))
+                Text(verbatim: ValueText.rowPrecipitation(day.precipMM, in: units.rain))
                     .font(.inter(11.5, .bold, relativeTo: .caption))
             }
             .foregroundStyle(Color(Palette.rain))
@@ -137,8 +138,8 @@ struct DayRow: View {
 
     @ViewBuilder
     private func highLow(stacked: Bool) -> some View {
-        let high = Text(verbatim: ValueText.shortTemperature(day.high)).font(.inter(16, .extraBold, relativeTo: .body))
-        let low = Text(verbatim: ValueText.shortTemperature(day.low)).font(.inter(13, .semibold, relativeTo: .footnote))
+        let high = Text(verbatim: ValueText.shortTemperature(day.high, in: units.temperature)).font(.inter(16, .extraBold, relativeTo: .body))
+        let low = Text(verbatim: ValueText.shortTemperature(day.low, in: units.temperature)).font(.inter(13, .semibold, relativeTo: .footnote))
             .foregroundStyle(Color(Palette.textSecondary))
         if stacked {
             HStack(alignment: .firstTextBaseline, spacing: 8) { high; low }
@@ -156,12 +157,13 @@ struct DayRow: View {
 
 nonisolated enum DayRowText {
     /// "Wednesday 25 November. Precipitation 21 mm, chance 100%. High 6°, low 2°. Certainty 91 percent, High tier."
-    static func label(_ day: PlaceForecast.Day) -> String {
+    static func label(_ day: PlaceForecast.Day, units: UnitChoice = .metric) -> String {
+        let amount = ValueText.rowPrecipitation(day.precipMM, in: units.rain)
         let precipitation = day.precipMM == 0
-            ? ValueText.rowPrecipitation(day.precipMM)
-            : String(localized: "Precipitation \(ValueText.rowPrecipitation(day.precipMM))",
+            ? amount
+            : String(localized: "Precipitation \(amount)",
                      comment: "VoiceOver, day row: precipitation amount")
-        return String(localized: "\(ValueText.spokenDate(day.date)). \(precipitation), chance \(ValueText.percent(day.precipChance)). High \(ValueText.shortTemperature(day.high)), low \(ValueText.shortTemperature(day.low)). \(CertaintyText.ringLabel(day)).",
+        return String(localized: "\(ValueText.spokenDate(day.date)). \(precipitation), chance \(ValueText.percent(day.precipChance)). High \(ValueText.shortTemperature(day.high, in: units.temperature)), low \(ValueText.shortTemperature(day.low, in: units.temperature)). \(CertaintyText.ringLabel(day)).",
                       comment: "VoiceOver label for a closed day row: date, precipitation, chance, high, low, Certainty and tier")
     }
 
@@ -187,6 +189,7 @@ struct DayPanel: View {
     let day: PlaceForecast.Day
     let names: SourceNames
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.unitChoice) private var units
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -208,7 +211,7 @@ struct DayPanel: View {
                 BigCertaintyRing(day: day)
                 VStack(alignment: .leading, spacing: 4) {
                     TierPill(tier: day.certaintyTier)
-                    Text(verbatim: CertaintyText.oddsSentence(day))
+                    Text(verbatim: CertaintyText.oddsSentence(day, unit: units.temperature))
                         .font(.inter(14, .regular, relativeTo: .subheadline))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -216,7 +219,7 @@ struct DayPanel: View {
             VStack(alignment: .leading, spacing: 7) {
                 caps(String(localized: "What \(ValueText.percent(day.certainty)) looks like").uppercased())
                 CertaintyDots(day: day, fill: true)
-                Text(verbatim: CertaintyText.dotsSentence(day))
+                Text(verbatim: CertaintyText.dotsSentence(day, unit: units.temperature))
                     .font(.inter(13, .regular, relativeTo: .footnote))
                     .foregroundStyle(Color(Palette.textBody))
                     .fixedSize(horizontal: false, vertical: true)
@@ -275,9 +278,9 @@ struct DayPanel: View {
             caps(String(localized: "Exact values").uppercased())
             LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 400 : 120), spacing: 6)],
                       alignment: .leading, spacing: 6) {
-                fact(String(localized: "High"), ValueText.temperature(day.high))
-                fact(String(localized: "Low"), ValueText.temperature(day.low))
-                fact(String(localized: "Precipitation"), ValueText.millimetres(day.precipMM))
+                fact(String(localized: "High"), ValueText.temperature(day.high, in: units.temperature))
+                fact(String(localized: "Low"), ValueText.temperature(day.low, in: units.temperature))
+                fact(String(localized: "Precipitation"), ValueText.precipitation(day.precipMM, in: units.rain))
                 fact(String(localized: "Chance of 1\u{00A0}mm+"), ValueText.percent(day.precipChance))
             }
         }
