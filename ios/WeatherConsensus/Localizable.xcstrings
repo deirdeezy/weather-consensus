@@ -1,7 +1,113 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "A newer forecast needs an app update. Showing the last saved forecast." : {
 
+    },
+    "Certainty %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Certainty %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Consensus only" : {
+
+    },
+    "Could not load the forecast." : {
+
+    },
+    "Could not refresh. Showing the last saved forecast." : {
+
+    },
+    "Could not save the forecast on this phone." : {
+
+    },
+    "Data" : {
+
+    },
+    "Forecast" : {
+
+    },
+    "High" : {
+      "comment" : "Certainty tier, 75% and up"
+    },
+    "High %@ · Low %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "High %1$@ · Low %2$@"
+          }
+        }
+      }
+    },
+    "Low" : {
+      "comment" : "Certainty tier, under 50%"
+    },
+    "Medium" : {
+      "comment" : "Certainty tier, 50 to 74%"
+    },
+    "Next 14 days" : {
+
+    },
+    "No forecast yet" : {
+
+    },
+    "Offline." : {
+
+    },
+    "Offline. Showing the last saved forecast." : {
+
+    },
+    "Precipitation %@ · Chance %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Precipitation %1$@ · Chance %2$@"
+          }
+        }
+      }
+    },
+    "Pull down to try again." : {
+
+    },
+    "Stale: no new forecast run in over %lld hours" : {
+
+    },
+    "This forecast needs an app update." : {
+
+    },
+    "Updated %lld hours ago" : {
+      "comment" : "How long ago the forecast file was published. Plural by hour count.",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Updated %lld hour ago"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Updated %lld hours ago"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Updated less than an hour ago" : {
+
+    }
   },
   "version" : "1.0"
 }
