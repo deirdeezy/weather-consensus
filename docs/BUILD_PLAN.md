@@ -10,8 +10,8 @@ Current stage: **Stage 1** (backend core, Kitimat only, on the main development 
 - Climate-day offset rechecked across -1 to -8 h: -6 h stays.
 
 ## Stage 1: backend core (local, Kitimat only)
-1. `uv` project, Python 3.12. `uv run pytest` and `backtest.py` pass on the Mac.
-2. Confirm current Open-Meteo docs: live forecast endpoint, model ids, Ensemble API ids, and the model-update metadata endpoint. Record links in `openmeteo.py`.
+1. `uv` project, Python 3.12. `uv run pytest` and `backtest.py` pass on the Mac. (Done 24 Nov 2026.)
+2. Confirm current Open-Meteo docs: live forecast endpoint, model ids, Ensemble API ids, and the model-update metadata endpoint. Record links in `openmeteo.py`. (Done 24 Nov 2026: ensemble ids fixed in `config/sources.json`, GEFS uses the 0.5 deg run for 14 days, metadata paths per source added.)
 3. `refresh.py`: check which sources have a new run; pull only those; save each raw pull under `data/store/` (date-stamped JSON); log every refusal.
 4. `score.py` (nightly): pull ECCC daily for Kitimat Forest Ave, match stored forecasts by lead, update habit fixes and weights.
 5. Days 8 to 14: ensembles plus the 1991 to 2020 normal (Kitimat Townsite). Port the pilot's horizon test; Certainty must fall honestly with lead.

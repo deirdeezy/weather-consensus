@@ -19,7 +19,7 @@ iOS weather app (SwiftUI) that blends up to 12 forecast sources, weights each by
 - Never invent accuracy numbers. Every accuracy claim must come from a script in this repo and its output. Label sample data as sample, in docs and in the UI.
 - Test any algorithm change on history (`backend/scripts/backtest.py`) before shipping. Report before and after numbers.
 - Check current docs for every external API, limit, price and Apple rule before coding against it, and cite the source in the commit or doc. Do not rely on memory.
-- Open-Meteo: free tier is non-commercial only, 10,000 calls a day, 5,000 an hour, 600 a minute, counted per internet address. Credit "Weather data by Open-Meteo.com" (CC BY 4.0) in the app and the published JSON.
+- Open-Meteo: free tier is non-commercial only, 10,000 calls a day, 5,000 an hour, 600 a minute, 300,000 a month, counted per internet address. More than 10 variables or 2 weeks of data in one call counts as more than one call. Metadata (model-update) calls are free. Credit "Weather data by Open-Meteo.com" (CC BY 4.0) in the app and the published JSON.
 - ECCC station data is the truth in Canada; NOAA stations in the US.
 - Ask the owner before: creating the GitHub repo, turning on Actions or Pages, anything that costs money, App Store Connect or CloudKit production changes, deleting data.
 - Repo lives in `~/Developer/weather-consensus`, never in iCloud Drive or Google Drive. Commit in small steps; push when a step is done (once the GitHub repo exists).

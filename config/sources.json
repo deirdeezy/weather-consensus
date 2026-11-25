@@ -1,5 +1,5 @@
 {
-  "_note": "Open-Meteo model ids. deterministic_pool is what the pilot tested. Ensemble ids are to be confirmed against the Ensemble API docs in stage 1.",
+  "_note": "Open-Meteo model ids, checked against current docs 24 Nov 2026 (links in backend/wxc/openmeteo.py). deterministic_pool is what the pilot tested; ids kept as the pilot used them. meta_paths: model-update metadata paths per source; a seamless source counts as new when any of its paths shows a new run. Seamless components are from each provider's docs page; which component serves Kitimat at each lead is not documented.",
   "deterministic_pool": [
     "ecmwf_ifs",
     "ecmwf_aifs025_single",
@@ -22,13 +22,31 @@
     "cma_grapes_global": "CMA",
     "meteofrance_seamless": "Meteo-France"
   },
+  "docs_ids": {
+    "_note": "Current names in the docs for the pilot's short ids. Both work (checked live 24 Nov 2026).",
+    "gfs_seamless": "ncep_gfs_seamless",
+    "gem_seamless": "cmc_gem_seamless",
+    "icon_seamless": "dwd_icon_seamless"
+  },
+  "meta_paths": {
+    "ecmwf_ifs": ["ecmwf_ifs"],
+    "ecmwf_aifs025_single": ["ecmwf_aifs025_single"],
+    "gfs_seamless": ["ncep_gfs013", "ncep_gfs025", "ncep_rrfs_north_america"],
+    "gem_seamless": ["cmc_gem_gdps_15km", "cmc_gem_rdps_10km", "cmc_gem_hrdps"],
+    "icon_seamless": ["dwd_icon", "dwd_icon_global_native"],
+    "ukmo_seamless": ["ukmo_global_deterministic_10km"],
+    "jma_seamless": ["jma_gsm"],
+    "cma_grapes_global": ["cma_grapes_global"],
+    "meteofrance_seamless": ["meteofrance_arpege_world025"]
+  },
   "ensembles_from_day": 7,
-  "ensembles_to_confirm": {
-    "ECMWF ENS (51 members)": "ecmwf_ifs025",
-    "NOAA GEFS (31 members)": "gfs025",
-    "ECCC GEPS (21 members)": "gem_global"
+  "ensembles": {
+    "_note": "Ensemble API ids. GEFS uses the 0.5 deg run because the 0.25 deg run (ncep_gefs025) stops at 10 days. All three returned 14 full days at Kitimat (checked live 24 Nov 2026).",
+    "ecmwf_ifs025_ensemble": {"label": "ECMWF ENS", "members": 51, "days": 15, "meta_path": "ecmwf_ifs025_ensemble"},
+    "ncep_gefs05": {"label": "NOAA GEFS", "members": 31, "days": 35, "meta_path": "ncep_gefs05"},
+    "gem_global_ensemble": {"label": "ECCC GEPS", "members": 21, "days": 16, "meta_path": "cmc_gem_geps"}
   },
   "candidate": {
-    "ncep_aigfs025": "NOAA AI-GFS. Strong in testing, archive only from Jan 2026. Not yet decided."
+    "ncep_aigfs025": "NOAA AI-GFS. Strong in testing, archive only from Jan 2026. Not yet decided. Meta path ncep_aigfs025."
   }
 }
