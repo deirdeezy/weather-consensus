@@ -1,0 +1,6 @@
+# actionlint 1.7.12 does not know concurrency "queue" yet. GitHub documents it:
+# https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs
+paths:
+  .github/workflows/**/*.yml:
+    ignore:
+      - 'unexpected key "queue" for "concurrency" section'

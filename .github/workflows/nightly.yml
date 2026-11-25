@@ -1,0 +1,115 @@
+# Nightly: score against the station (ECCC), update weights, publish, save
+# data, deploy Pages. Runs twice; the second run only rescores if ECCC had not
+# posted yesterday's values by the first. Design and sources: docs/HOSTING.md.
+name: Nightly scoring
+
+on:
+  schedule:
+    - cron: "47 9 * * *"   # 01:47 PST
+    - cron: "47 15 * * *"  # 07:47 PST, only if yesterday was still missing
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rescore even if already scored today"
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: data-branch  # shared with refresh.yml
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  score:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write  # push the data branch
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out the data branch into data/store
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: data
+          path: data/store
+          fetch-depth: 1
+
+      # Downloads score.py fetches again every night (Previous Runs, station
+      # data). Kept in the Actions cache, not Git, only as a fallback copy if a
+      # download fails.
+      - name: Restore the download cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/store/*/history/prev_*.json
+            data/store/*/history/eccc_daily_*.json
+          key: score-downloads-${{ github.run_id }}
+          restore-keys: score-downloads-
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --frozen --no-dev
+
+      - name: Score, publish, save data
+        env:
+          IF_NEEDED: ${{ github.event_name == 'schedule' || !inputs.force }}
+        run: |
+          if [ "$IF_NEEDED" = "true" ]; then export IF_NEEDED=1; else export IF_NEEDED=0; fi
+          bash backend/ci/nightly.sh
+
+      - name: Save the download cache
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/store/*/history/prev_*.json
+            data/store/*/history/eccc_daily_*.json
+          key: score-downloads-${{ github.run_id }}
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0
+        with:
+          path: public
+          retention-days: 1
+
+  deploy:
+    needs: score
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346  # v5.0.1
+
+  # GitHub turns off scheduled workflows in a public repo after 60 days with
+  # no repository activity. Re-enable both every night (no-op while enabled).
+  keepalive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write  # enable workflows
+    steps:
+      - name: Keep the scheduled workflows enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          for wf in refresh.yml nightly.yml; do
+            gh api -X PUT "repos/$REPO/actions/workflows/$wf/enable" && echo "$wf enabled"
+          done
