@@ -23,7 +23,7 @@
     "meteofrance_seamless": "Meteo-France"
   },
   "docs_ids": {
-    "_note": "Current names in the docs for the pilot's short ids. Both work (checked live 24 Nov 2026).",
+    "_note": "Live calls use these current ids (forecast, Previous Runs, Single Runs); data is stored under the pilot keys so history stays continuous. Old and new ids returned identical data on all three APIs (checked live 24 Nov 2026).",
     "gfs_seamless": "ncep_gfs_seamless",
     "gem_seamless": "cmc_gem_seamless",
     "icon_seamless": "dwd_icon_seamless"

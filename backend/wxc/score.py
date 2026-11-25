@@ -30,7 +30,7 @@ from . import eccc
 from . import horizon as hz
 from . import openmeteo as om
 from .daily import CLIMATE_DAY_OFFSET_H, hourly_to_daily, previous_runs_daily
-from .refresh import _write_json, iso, refusal_logger
+from .refresh import _write_json, api_id, iso, refusal_logger
 
 HISTORY_DAYS = 200  # 60-day windows on top of 60 + 30 days of windows, plus leads
 LEADS = range(1, 8)  # Previous Runs API offers previous_day1 to previous_day7
@@ -81,8 +81,8 @@ def fetch_history(place: dict, cfg: dict, store: Path, issue: dt.date,
                           lambda: fetch_obs(cid, start, issue.isoformat()), log)
     prev = {}
     for m in cfg["deterministic_pool"]:
-        url = om.previous_runs_url(place["lat"], place["lon"], place["elevation_m"], m, start, end,
-                                   leads=LEADS)
+        url = om.previous_runs_url(place["lat"], place["lon"], place["elevation_m"], api_id(cfg, m),
+                                   start, end, leads=LEADS)
         p = _fetch_or_stale(m, hist / f"prev_{m}.json",
                             lambda: get(url, log=lambda k, d, m=m: log(m, k, d)), log)
         if p is not None:
@@ -96,7 +96,8 @@ def fetch_long(place: dict, cfg: dict, store: Path, issue: dt.date, get=om.get_j
     first = max(hz.SINGLE_RUNS_FROM, issue - dt.timedelta(days=HISTORY_DAYS))
     days = [first + dt.timedelta(days=i) for i in range((issue - first).days)]
     hz.fetch_single_runs(place, cfg["deterministic_pool"], days, store, get=get, log=log,
-                         echo=lambda *a: None)
+                         echo=lambda *a: None,
+                         api_ids={m: api_id(cfg, m) for m in cfg["deterministic_pool"]})
     long = {m: hz.single_runs_daily(store, place["id"], m, leads=LONG_LEADS)
             for m in cfg["deterministic_pool"]}
     long = {m: d for m, d in long.items() if d}

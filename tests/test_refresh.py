@@ -114,3 +114,24 @@ def test_get_json_logs_every_failed_try(monkeypatch):
     except om.LimitRefused:
         pass
     assert calls == ["network"] * 3
+
+
+def test_live_calls_use_current_ids_but_store_under_pilot_keys(tmp_path):
+    cfg = {**CFG, "docs_ids": {"gfs_seamless": "ncep_gfs_seamless"}}
+    api = FakeAPI(all_meta())
+    rf.refresh(PLACE, cfg, tmp_path, now=NOW, get=api, echo=lambda *a: None)
+    assert api.pulls == ["ecmwf_ifs", "ncep_gfs_seamless", "ncep_gefs05"]
+    saved = next((tmp_path / "kitimat").glob("*/*_gfs_seamless.json"))
+    rec = json.loads(saved.read_text())
+    assert rec["source"] == "gfs_seamless" and rec["api_model"] == "ncep_gfs_seamless"
+    state = json.loads((tmp_path / "kitimat" / "state.json").read_text())
+    assert "gfs_seamless" in state and "ncep_gfs_seamless" not in state
+
+
+def test_real_config_maps_the_three_renamed_ids():
+    cfg = json.loads((Path(__file__).resolve().parents[1] / "config" / "sources.json").read_text())
+    ids = {s.id: s.api_model for s in rf.sources_from_config(cfg)}
+    assert ids["gfs_seamless"] == "ncep_gfs_seamless"
+    assert ids["gem_seamless"] == "cmc_gem_seamless"
+    assert ids["icon_seamless"] == "dwd_icon_seamless"
+    assert ids["ecmwf_ifs"] == "ecmwf_ifs"

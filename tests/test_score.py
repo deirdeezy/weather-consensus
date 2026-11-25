@@ -196,3 +196,19 @@ def test_days_8_to_14_use_long_history_and_the_normal():
     assert "normal" not in s["leads"]["9"]["pcp"]["sources"]
     assert "normal" in s["leads"]["10"]["pcp"]["sources"]
 
+
+def test_history_calls_use_current_ids_but_store_under_pilot_keys(tmp_path):
+    cfg = {**CFG, "docs_ids": {"wild": "new_wild"}}
+    seen = []
+
+    def get(url, tries=8, log=print):
+        seen.append(url.split("models=")[1].split("&")[0])
+        return fake_get(url.replace("new_wild", "wild"))
+
+    sc.score(PLACE, cfg, tmp_path, issue=ISSUE, get=get, fetch_obs=obs_payload,
+             fetch_normal=lambda cid: [], echo=lambda *a: None)
+    assert "new_wild" in seen and "wild" not in seen
+    hist = tmp_path / "kitimat" / "history"
+    assert (hist / "prev_wild.json").exists() and not (hist / "prev_new_wild.json").exists()
+    assert (tmp_path / "kitimat" / "single" / "wild").is_dir()
+    assert not (tmp_path / "kitimat" / "single" / "new_wild").exists()

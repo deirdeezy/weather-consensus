@@ -31,11 +31,23 @@ FORECAST_DAYS = 16  # API maximum; covers day 14 after the climate-day shift
 META_TRIES = 3
 
 
+def api_id(cfg: dict, source_id: str) -> str:
+    """Model id to send to Open-Meteo. Data is always stored under source_id
+    (the pilot key) so history stays continuous; config/sources.json docs_ids
+    maps pilot keys to the ids the current docs use (same data, checked live)."""
+    return cfg.get("docs_ids", {}).get(source_id, source_id)
+
+
 @dataclass(frozen=True)
 class Source:
-    id: str
+    id: str  # pilot key: names the files and the history
     kind: str  # "deterministic" or "ensemble"
     meta_paths: tuple[str, ...]
+    api: str = ""  # id sent to Open-Meteo
+
+    @property
+    def api_model(self) -> str:
+        return self.api or self.id
 
     @property
     def ensemble(self) -> bool:
@@ -43,10 +55,11 @@ class Source:
 
 
 def sources_from_config(cfg: dict) -> list[Source]:
-    out = [Source(m, "deterministic", tuple(cfg["meta_paths"][m])) for m in cfg["deterministic_pool"]]
+    out = [Source(m, "deterministic", tuple(cfg["meta_paths"][m]), api_id(cfg, m))
+           for m in cfg["deterministic_pool"]]
     for m, e in cfg["ensembles"].items():
         if not m.startswith("_"):
-            out.append(Source(m, "ensemble", (e["meta_path"],)))
+            out.append(Source(m, "ensemble", (e["meta_path"],), api_id(cfg, m)))
     return out
 
 
@@ -116,7 +129,8 @@ def save_raw(store: Path, place_id: str, s: Source, url: str, payload: dict,
     t = dt.datetime.fromtimestamp(now, dt.timezone.utc)
     path = store / place_id / t.strftime("%Y-%m-%d") / f"{t:%H%M%S}Z_{s.id}.json"
     _write_json(path, {
-        "source": s.id, "kind": s.kind, "place": place_id, "fetched_at": iso(now),
+        "source": s.id, "api_model": s.api_model, "kind": s.kind, "place": place_id,
+        "fetched_at": iso(now),
         "runs": {p: iso(v) for p, v in runs.items()}, "url": url,
         "credit": om.CREDIT, "response": payload,
     })
@@ -161,7 +175,7 @@ def refresh(place: dict, cfg: dict, store: Path, now: int | None = None,
 
     for s, ready in todo:
         build = om.ensemble_url if s.ensemble else om.forecast_url
-        url = build(place["lat"], place["lon"], place["elevation_m"], s.id, FORECAST_DAYS)
+        url = build(place["lat"], place["lon"], place["elevation_m"], s.api_model, FORECAST_DAYS)
         try:
             payload = get(url, log=lambda k, d, sid=s.id: log(sid, k, d))
         except om.LimitRefused as e:

@@ -57,8 +57,10 @@ def single_run_path(store: Path, place_id: str, model: str, day: dt.date) -> Pat
 
 
 def fetch_single_runs(place: dict, models: list[str], days: list[dt.date], store: Path,
-                      get=om.get_json, log=None, sleep=time.sleep, echo=print) -> dict:
-    """Download every missing 00 UTC run. Saved runs are never fetched again."""
+                      get=om.get_json, log=None, sleep=time.sleep, echo=print,
+                      api_ids: dict | None = None) -> dict:
+    """Download every missing 00 UTC run. Saved runs are never fetched again.
+    Files are named by the pilot key; api_ids gives the id sent to Open-Meteo."""
     done = failed = 0
     for m in models:
         for d in days:
@@ -66,7 +68,8 @@ def fetch_single_runs(place: dict, models: list[str], days: list[dt.date], store
             gone = path.with_suffix(".missing")
             if path.exists() or gone.exists():
                 continue
-            url = om.single_run_url(place["lat"], place["lon"], place["elevation_m"], m,
+            url = om.single_run_url(place["lat"], place["lon"], place["elevation_m"],
+                                    (api_ids or {}).get(m, m),
                                     d.isoformat() + RUN_HOUR, forecast_days=16)
             try:
                 payload = get(url, log=lambda k, x, m=m: log(m, k, x) if log else None)
