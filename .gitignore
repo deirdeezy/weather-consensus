@@ -20,3 +20,6 @@ DerivedData/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Published files: written by publish.py, served by Pages from Stage 2 (deploy method decided then)
+public/*.json

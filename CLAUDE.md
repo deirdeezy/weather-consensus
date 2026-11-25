@@ -48,10 +48,10 @@ iOS weather app (SwiftUI) that blends up to 12 forecast sources, weights each by
 ## Layout
 ```
 backend/wxc/        Python package: daily.py, consensus.py, certainty.py, eccc.py, openmeteo.py
-backend/scripts/    backtest.py (reproduces the pilot), later: refresh.py, score.py, publish.py
+backend/scripts/    backtest.py (reproduces the pilot), horizon.py, refresh.py, score.py, publish.py
 config/             places.json, sources.json
 data/cache/         pilot downloads (git-ignored)
-docs/               BUILD_PLAN.md, ALGORITHM.md, XCODE.md
+docs/               BUILD_PLAN.md, ALGORITHM.md, XCODE.md, JSON_SCHEMA.md (+ place-v1.schema.json)
 public/             published JSON per place (later served by GitHub Pages)
 tests/              pytest
 ios/                SwiftUI app (stage 3)
@@ -66,4 +66,5 @@ uv run python backend/scripts/backtest.py --align
 uv run python backend/scripts/refresh.py --dry-run  # which sources have a new run
 uv run python backend/scripts/refresh.py         # pull them into data/store/
 uv run python backend/scripts/score.py           # nightly: station truth, habit fixes, weights
+uv run python backend/scripts/publish.py         # write public/<place>.json (docs/JSON_SCHEMA.md)
 ```
