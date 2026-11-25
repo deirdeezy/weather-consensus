@@ -72,6 +72,16 @@ nonisolated enum Palette {
         tier == .low ? tierLowText : self.tier(tier)
     }
 
+    /// Tier pill in the opened day (canvas breakdown sheet): light fill, dark ink.
+    static func tierPill(_ tier: CertaintyTier?) -> (fill: RGB, ink: RGB) {
+        switch tier {
+        case .high: (RGB(0xE3F6EC), RGB(0x155F39))
+        case .medium: (RGB(0xFFF3CC), RGB(0x6B4A00))
+        case .low: (RGB(0xFFE8DC), RGB(0x8A3510))
+        case nil: (RGB(0xEEF3FA), ink)
+        }
+    }
+
     static func tier(_ tier: CertaintyTier?) -> RGB {
         switch tier {
         case .high: tierHigh

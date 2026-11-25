@@ -1,13 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "%@. High %@, low %@. Precipitation %@, chance %@." : {
-      "comment" : "VoiceOver label for a day row: date, high, low, precipitation and chance",
+    "%@ normal (1991 to 2020)" : {
+      "comment" : "Source name: the place's 1991 to 2020 climate normal. The value is the place name."
+    },
+    "%@. %@, chance %@. High %@, low %@. %@." : {
+      "comment" : "VoiceOver label for a closed day row: date, precipitation, chance, high, low, Certainty and tier",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "%1$@. High %2$@, low %3$@. Precipitation %4$@, chance %5$@."
+            "value" : "%1$@. %2$@, chance %3$@. High %4$@, low %5$@. %6$@."
           }
         }
       }
@@ -46,9 +49,6 @@
     "A newer forecast needs an app update. Showing the last saved forecast." : {
 
     },
-    "About %lld of every 10 days like this land within 2 °C (3.6 °F) of our high." : {
-      "comment" : "Shown under an open day row"
-    },
     "Certainty" : {
 
     },
@@ -66,7 +66,13 @@
     "Certainty not available" : {
 
     },
-    "Chance of 1 mm+" : {
+    "Chance of 1 mm+" : {
+
+    },
+    "China CMA" : {
+      "comment" : "Source name: China Meteorological Administration"
+    },
+    "Collapsed" : {
 
     },
     "Consensus" : {
@@ -84,26 +90,59 @@
     "Could not save the forecast on this phone." : {
 
     },
+    "DWD ICON" : {
+      "comment" : "Source name, do not translate"
+    },
     "Data" : {
 
     },
     "Done" : {
 
     },
-    "Every day is a consensus of up to 12 forecast sources, weighted by how well each has done here. The ring is the chance the high lands within 2 °C (3.6 °F) of our number." : {
+    "Dry" : {
+      "comment" : "Day row: the forecast precipitation is exactly zero"
+    },
+    "ECMWF" : {
+      "comment" : "Source name, do not translate"
+    },
+    "ECMWF AI" : {
+      "comment" : "Source name: ECMWF's AI model (AIFS)"
+    },
+    "Env. Canada" : {
+      "comment" : "Source name: Environment and Climate Change Canada's GEM model"
+    },
+    "Every day blends several forecast sources, weighted by how well each has done here. The ring is the chance the high lands within 2 °C (3.6 °F) of our number." : {
 
     },
-    "HOW THE SOURCES WERE WEIGHTED FOR THE HIGH" : {
+    "Exact values" : {
+
+    },
+    "Expanded" : {
 
     },
     "High" : {
       "comment" : "Certainty tier, 75% and up"
+    },
+    "How %lld sources and the normal reached consensus" : {
+
+    },
+    "How %lld sources reached consensus" : {
+
+    },
+    "How 1 source and the normal reached consensus" : {
+
+    },
+    "How 1 source reached consensus" : {
+
     },
     "How it works ›" : {
 
     },
     "How your forecast is made, source by source. Coming next." : {
 
+    },
+    "Japan JMA" : {
+      "comment" : "Source name: Japan Meteorological Agency"
     },
     "Kitimat for now. More places come in Stage 4." : {
 
@@ -114,11 +153,28 @@
     "Medium" : {
       "comment" : "Certainty tier, 50 to 74%"
     },
+    "Météo-France" : {
+      "comment" : "Source name, do not translate"
+    },
+    "NOAA GFS" : {
+      "comment" : "Source name, do not translate"
+    },
     "No forecast yet" : {
 
     },
     "No source weights for this day" : {
 
+    },
+    "Odds that %@'s high lands within 2 °C of %@." : {
+      "comment" : "Opened day row, beside the big Certainty ring. First value is a weekday name, second the forecast high.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Odds that %1$@'s high lands within 2 °C of %2$@."
+          }
+        }
+      }
     },
     "Offline." : {
 
@@ -129,6 +185,9 @@
     "Opens the Consensus tab" : {
 
     },
+    "Out of 10 days like this, about %lld land within 2 °C of our forecast high." : {
+      "comment" : "Opened day row, under the 10 dots"
+    },
     "Places" : {
 
     },
@@ -137,6 +196,9 @@
     },
     "Precipitation" : {
 
+    },
+    "Precipitation %@" : {
+      "comment" : "VoiceOver, day row: precipitation amount"
     },
     "Pull down to try again." : {
 
@@ -147,29 +209,29 @@
     "Radar comes in a later step." : {
 
     },
+    "SOURCE" : {
+
+    },
     "Settings" : {
 
     },
-    "Shows how each source was weighted" : {
+    "Shows the Certainty breakdown and sources for this day" : {
 
     },
     "Sources for the high: %@" : {
       "comment" : "VoiceOver label for the source bar; the list is source names with their share"
     },
-    "Sources hidden" : {
-
-    },
-    "Sources shown" : {
-
-    },
     "Stale: no new forecast data in over %lld hours. Numbers may be out of date." : {
 
     },
-    "Tap a day for its sources" : {
+    "Tap a day for details" : {
 
     },
     "This forecast needs an app update." : {
 
+    },
+    "UK Met Office" : {
+      "comment" : "Source name, do not translate"
     },
     "Updated %lld hours ago" : {
       "comment" : "How long ago the backend last got new forecast data. Plural by hour count.",
@@ -197,7 +259,13 @@
     "Updated less than an hour ago" : {
 
     },
+    "WEIGHT" : {
+
+    },
     "Weather" : {
+
+    },
+    "What %@ looks like" : {
 
     },
     "means about %lld of every 10 days like this land within 2 °C" : {

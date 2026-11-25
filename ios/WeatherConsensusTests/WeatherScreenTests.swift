@@ -137,11 +137,15 @@ struct WeatherValueTests {
         let forecast = try Fixture.forecast()
         let day = forecast.days[0]
         let total = day.weights.reduce(0) { $0 + $1.weight }
-        let label = SourceText.barLabel(weights: day.weights, total: total, sources: forecast.sources)
+        let names = SourceNames(forecast)
+        let label = SourceText.barLabel(weights: day.weights, total: total, names: names)
         for weight in day.weights {
-            #expect(label.contains(SourceText.label(for: weight.id, in: forecast.sources)))
+            #expect(label.contains(names.name(for: weight.id)))
         }
-        #expect(label.contains("17%"))
+        // VoiceOver uses the same display names as the screen.
+        #expect(label.contains("UK Met Office 17%"))
+        #expect(label.contains("Env. Canada"))
+        #expect(!label.contains("ECCC GEM"))
     }
 
     @Test func ringLabelSaysPercentAndTier() throws {
@@ -178,3 +182,164 @@ struct WeatherValueTests {
         #expect(Bundle.main.url(forResource: "Inter-OFL", withExtension: "txt") != nil)
     }
 }
+
+@Suite("Day rows")
+struct DayRowTests {
+    @Test func precipitationIsWholeMillimetresWithLessThanOneAndDry() {
+        let nbsp = "\u{00A0}"
+        #expect(ValueText.rowPrecipitation(21.2) == "21\(nbsp)mm")
+        #expect(ValueText.rowPrecipitation(1.0) == "1\(nbsp)mm")
+        #expect(ValueText.rowPrecipitation(0.3) == "<1\(nbsp)mm")
+        #expect(ValueText.rowPrecipitation(0.96) == "<1\(nbsp)mm")
+        #expect(ValueText.rowPrecipitation(0) == "Dry")
+        #expect(ValueText.rowPrecipitation(nil) == ValueText.missing)
+    }
+
+    @Test func closedRowLabelReadsEverythingOnTheRow() throws {
+        let day = try Fixture.forecast().days[0]
+        let label = DayRowText.label(day)
+        for part in ["Wednesday", "25", "21\u{00A0}mm", "100%", "High 6°", "low 2°", "Certainty 91 percent, High tier"] {
+            #expect(label.contains(part), "missing \(part) in \(label)")
+        }
+    }
+
+    @Test func dryDayReadsDry() throws {
+        var object = try Fixture.jsonObject()
+        var days = object["days"] as! [[String: Any]]
+        days[0]["precip_mm"] = 0.0
+        object["days"] = days
+        let day = try ForecastDecoder.decode(Fixture.encode(object)).days[0]
+        #expect(DayRowText.label(day).contains("Dry,"))
+        #expect(!DayRowText.label(day).contains("Precipitation"))
+    }
+
+    @Test func panelSentencesFollowTheCanvas() throws {
+        let day = try Fixture.forecast().days[0]
+        #expect(CertaintyText.dotsSentence(day) == "Out of 10 days like this, about 9 land within 2\u{00A0}°C of our forecast high.")
+        #expect(CertaintyText.oddsSentence(day) == "Odds that Wednesday's high lands within 2\u{00A0}°C of 6°.")
+    }
+
+    @Test func blendHeadCountsModelsAndTheNormal() throws {
+        let forecast = try Fixture.forecast()
+        #expect(DayRowText.blendHead(forecast.days[0]) == "HOW 9 SOURCES REACHED CONSENSUS")
+        // Day 14 of the fixture: ECMWF AIFS, NOAA GFS and the normal.
+        #expect(DayRowText.blendHead(forecast.days[13]) == "HOW 2 SOURCES AND THE NORMAL REACHED CONSENSUS")
+    }
+}
+
+@Suite("Source names")
+struct SourceNameTests {
+    @Test(arguments: [
+        ("gem_seamless", "Env. Canada"),
+        ("ecmwf_ifs", "ECMWF"),
+        ("ecmwf_aifs025_single", "ECMWF AI"),
+        ("gfs_seamless", "NOAA GFS"),
+        ("icon_seamless", "DWD ICON"),
+        ("ukmo_seamless", "UK Met Office"),
+        ("jma_seamless", "Japan JMA"),
+        ("cma_grapes_global", "China CMA"),
+        ("meteofrance_seamless", "Météo-France"),
+        ("normal", "Kitimat normal (1991 to 2020)"),
+    ])
+    func everyPublishedSourceHasItsDisplayName(id: String, name: String) throws {
+        let names = SourceNames(try Fixture.forecast())
+        #expect(names.name(for: id) == name)
+    }
+
+    @Test func everySourceInTheFixtureIsMapped() throws {
+        let forecast = try Fixture.forecast()
+        for source in forecast.sources {
+            #expect(SourceNames.displayName(for: source.id, placeName: forecast.place.name) != nil, "no name for \(source.id)")
+        }
+    }
+
+    @Test func unknownIdFallsBackToTheFileName() {
+        let names = SourceNames(sources: [PlaceForecast.Source(id: "new_model_x", label: "New Model X")], placeName: "Terrace")
+        #expect(names.name(for: "new_model_x") == "New Model X")
+        // Not in the file either: the id itself, never a crash.
+        #expect(names.name(for: "missing_everywhere") == "missing_everywhere")
+        // The normal is named for the place.
+        #expect(names.name(for: "normal") == "Terrace normal (1991 to 2020)")
+    }
+}
+
+/// B: a number and its unit never split across lines. Checked three ways: every value string the app builds
+/// from real data, every string literal in the app's Swift source, and every key and value in the String Catalog.
+@Suite("Units never split")
+struct UnitSpacingTests {
+    /// A digit, an interpolation or a format specifier, then an ordinary (breakable) space or tab, then a unit.
+    /// U+00A0 is not matched by `[ \t]`, so joined units pass.
+    static let breakable = try! Regex(#"(\d|\\\([^()]*(\([^()]*\))?[^()]*\)|%(lld|ld|d|@|f|\.\d+f))[ \t]+(°C|°F|°|mm\b|cm\b|km/h|mph\b|%)"#)
+
+    static func offenders(in text: String) -> [String] {
+        text.matches(of: breakable).map { String(text[$0.range]) }
+    }
+
+    @Test func patternCatchesBreakableAndPassesJoined() {
+        #expect(!Self.offenders(in: "within 2 °C").isEmpty)
+        #expect(!Self.offenders(in: "21 mm").isEmpty)
+        #expect(!Self.offenders(in: "%lld mm").isEmpty)
+        #expect(!Self.offenders(in: #"\(value) °C"#).isEmpty)
+        #expect(Self.offenders(in: "within 2\u{00A0}°C (3.6\u{00A0}°F)").isEmpty)
+        #expect(Self.offenders(in: "91% and 6°").isEmpty)
+    }
+
+    @Test func valuesBuiltFromTheFixtureKeepUnitsJoined() throws {
+        let forecast = try Fixture.forecast()
+        var strings: [String] = []
+        for day in forecast.days {
+            strings += [ValueText.temperature(day.high), ValueText.temperature(day.low),
+                        ValueText.shortTemperature(day.high), ValueText.millimetres(day.precipMM),
+                        ValueText.rowPrecipitation(day.precipMM), ValueText.percent(day.precipChance),
+                        ValueText.percent(day.certainty),
+                        CertaintyText.dotsSentence(day), CertaintyText.oddsSentence(day), CertaintyText.dotsLabel(day),
+                        CertaintyText.ringLabel(day), DayRowText.label(day), DayRowText.blendHead(day),
+                        SourceText.barLabel(weights: day.weights, total: day.weights.reduce(0) { $0 + $1.weight },
+                                            names: SourceNames(forecast))]
+        }
+        for text in strings {
+            #expect(Self.offenders(in: text).isEmpty, "\(text)")
+        }
+    }
+
+    /// The app's source folder, found from this file's path (the simulator can read the Mac's files).
+    private static let appFolder = URL(filePath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().appending(path: "WeatherConsensus")
+
+    @Test func swiftStringLiteralsKeepUnitsJoined() throws {
+        let files = try #require(FileManager.default.enumerator(at: Self.appFolder, includingPropertiesForKeys: nil))
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
+        #expect(files.count >= 10)
+        let literal = try Regex(#""(?:[^"\\]|\\.)*""#)
+        for file in files {
+            for (index, line) in try String(contentsOf: file, encoding: .utf8).split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                if line.trimmingCharacters(in: .whitespaces).hasPrefix("//") { continue }
+                for match in line.matches(of: literal) {
+                    let found = Self.offenders(in: String(line[match.range]))
+                    #expect(found.isEmpty, "\(file.lastPathComponent):\(index + 1): \(found)")
+                }
+            }
+        }
+    }
+
+    @Test func stringCatalogKeepsUnitsJoined() throws {
+        let url = Self.appFolder.appending(path: "Localizable.xcstrings")
+        let catalog = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        #expect(strings.count > 20)
+        var texts = Array(strings.keys)
+        func collect(_ node: Any) {
+            if let dict = node as? [String: Any] {
+                if let value = dict["value"] as? String { texts.append(value) }
+                dict.values.forEach(collect)
+            } else if let array = node as? [Any] {
+                array.forEach(collect)
+            }
+        }
+        collect(strings)
+        for text in texts {
+            #expect(Self.offenders(in: text).isEmpty, "\(text)")
+        }
+    }
+}
+

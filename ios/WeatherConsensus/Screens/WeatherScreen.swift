@@ -5,8 +5,8 @@ extension EnvironmentValues {
     @Entry var nowOverride: Date? = nil
 }
 
-/// The Weather tab, built from the design canvas (v8): living sky, navy cards, Inter, the 14 days with
-/// Certainty ring, 10 dots, tier and source bar. Only values the published file has are shown
+/// The Weather tab, built from the design canvas (v8): living sky, navy cards, Inter, and the 14 days as
+/// canvas compact rows that open into a Certainty breakdown (`DayRows.swift`). Only values the published file has are shown
 /// (no current conditions, wind, hourly or condition icons yet: schema v1 has none).
 struct WeatherScreen: View {
     let model: ForecastScreenModel
@@ -252,7 +252,7 @@ struct CertaintyExplainer: View {
                     .buttonStyle(.plain)
                     .accessibilityHint(Text("Opens the Consensus tab"))
                 }
-                Text("Every day is a consensus of up to 12 forecast sources, weighted by how well each has done here. The ring is the chance the high lands within 2 °C (3.6 °F) of our number.")
+                Text("Every day blends several forecast sources, weighted by how well each has done here. The ring is the chance the high lands within 2\u{00A0}°C (3.6\u{00A0}°F) of our number.")
                     .font(.inter(13, .regular, relativeTo: .footnote))
                     .foregroundStyle(Color(Palette.textBody))
                     .fixedSize(horizontal: false, vertical: true)
@@ -283,7 +283,7 @@ struct CertaintyExplainer: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 CertaintyDots(day: day)
-                Text("means about \(filled) of every 10 days like this land within 2 °C")
+                Text("means about \(filled) of every 10 days like this land within 2\u{00A0}°C")
                     .font(.inter(12, .regular, relativeTo: .caption))
                     .foregroundStyle(Color(Palette.textSecondary))
                     .fixedSize(horizontal: false, vertical: true)
@@ -309,213 +309,6 @@ struct CertaintyExplainer: View {
         .padding(.horizontal, 8).padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.06)))
-        .accessibilityElement(children: .combine)
-    }
-}
-
-/// The 14 days.
-struct ForecastCard: View {
-    let forecast: PlaceForecast
-    @Binding var expandedDay: Int?
-
-    var body: some View {
-        Card(padding: EdgeInsets(top: 16, leading: 12, bottom: 8, trailing: 12)) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("14-day forecast").font(.inter(18, .extraBold, relativeTo: .headline))
-                        .accessibilityAddTraits(.isHeader)
-                    Spacer(minLength: 8)
-                    Text("Tap a day for its sources").font(.inter(12.5, .regular, relativeTo: .caption))
-                        .foregroundStyle(Color(Palette.textSecondary))
-                        .accessibilityHidden(true)
-                }
-                .padding(.horizontal, 4)
-                .padding(.bottom, 10)
-
-                ForEach(forecast.days) { day in
-                    DayRow(day: day, sources: forecast.sources, isExpanded: expandedDay == day.day) {
-                        withAnimation(.snappy) {
-                            expandedDay = expandedDay == day.day ? nil : day.day
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct DayRow: View {
-    let day: PlaceForecast.Day
-    let sources: [PlaceForecast.Source]
-    let isExpanded: Bool
-    let toggle: () -> Void
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    var body: some View {
-        let stacked = dynamicTypeSize.isAccessibilitySize
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 8) {
-                Button(action: toggle) {
-                    mainLine(stacked: stacked)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityElement(children: .ignore)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityLabel(rowLabel)
-                .accessibilityValue(isExpanded ? Text("Sources shown") : Text("Sources hidden"))
-                .accessibilityHint(Text("Shows how each source was weighted"))
-
-                CertaintyBadge(day: day)
-                    .onTapGesture(perform: toggle)
-            }
-
-            secondLine(stacked: stacked)
-                .contentShape(Rectangle())
-                .onTapGesture(perform: toggle)
-
-            if isExpanded {
-                DayDetail(day: day, sources: sources)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 4)
-        .background(RoundedRectangle(cornerRadius: 16).fill(isExpanded ? Color(Palette.rowOpen) : .clear))
-        .overlay(alignment: .top) {
-            Rectangle().fill(Color.white.opacity(0.1)).frame(height: 1).opacity(isExpanded || day.day == 1 ? 0 : 1)
-        }
-    }
-
-    @ViewBuilder
-    private func mainLine(stacked: Bool) -> some View {
-        let date = VStack(alignment: .leading, spacing: 0) {
-            Text(verbatim: ValueText.weekday(day.date)).font(.inter(15, .bold, relativeTo: .body))
-            Text(verbatim: ValueText.dayMonth(day.date)).font(.inter(12, .regular, relativeTo: .caption))
-                .foregroundStyle(Color(Palette.textSecondary))
-        }
-        let precip = VStack(alignment: stacked ? .leading : .trailing, spacing: 1) {
-            HStack(spacing: 3) {
-                Image(systemName: "drop.fill").font(.system(size: 10)).foregroundStyle(Color(Palette.rain))
-                Text(verbatim: ValueText.millimetres(day.precipMM))
-            }
-            .font(.inter(12.5, .bold, relativeTo: .caption))
-            Text(verbatim: ValueText.percent(day.precipChance))
-                .font(.inter(13, .bold, relativeTo: .footnote))
-                .foregroundStyle(Color(Palette.link))
-        }
-        let temps = VStack(alignment: stacked ? .leading : .trailing, spacing: 0) {
-            Text(verbatim: ValueText.shortTemperature(day.high)).font(.inter(16, .extraBold, relativeTo: .body))
-            Text(verbatim: ValueText.shortTemperature(day.low)).font(.inter(13, .semibold, relativeTo: .footnote))
-                .foregroundStyle(Color(Palette.textSecondary))
-        }
-        let chevron = Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(Color(Palette.textSecondary))
-
-        if stacked {
-            VStack(alignment: .leading, spacing: 6) {
-                date
-                temps
-                precip
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            HStack(spacing: 8) {
-                date.frame(minWidth: 52, alignment: .leading)
-                Spacer(minLength: 4)
-                precip
-                temps.frame(minWidth: 40, alignment: .trailing)
-                chevron
-            }
-            .monospacedDigit()
-        }
-    }
-
-    @ViewBuilder
-    private func secondLine(stacked: Bool) -> some View {
-        let tier = Text(verbatim: ValueText.tier(day.certaintyTier))
-            .font(.inter(12, .extraBold, relativeTo: .caption))
-            .foregroundStyle(Color(Palette.tierText(day.certaintyTier)))
-            .accessibilityHidden(true) // spoken by the ring
-        if stacked {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) { CertaintyDots(day: day); tier }
-                SourceBar(weights: day.weights, sources: sources)
-            }
-        } else {
-            HStack(spacing: 10) {
-                CertaintyDots(day: day)
-                tier.frame(minWidth: 50, alignment: .leading)
-                SourceBar(weights: day.weights, sources: sources)
-            }
-        }
-    }
-
-    private var rowLabel: Text {
-        Text("\(ValueText.spokenDate(day.date)). High \(ValueText.temperature(day.high)), low \(ValueText.temperature(day.low)). Precipitation \(ValueText.millimetres(day.precipMM)), chance \(ValueText.percent(day.precipChance)).",
-             comment: "VoiceOver label for a day row: date, high, low, precipitation and chance")
-    }
-}
-
-/// Opened day: exact values and every source's share of the high.
-struct DayDetail: View {
-    let day: PlaceForecast.Day
-    let sources: [PlaceForecast.Source]
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    var body: some View {
-        let total = day.weights.reduce(0) { $0 + $1.weight }
-        VStack(alignment: .leading, spacing: 12) {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 400 : 120), spacing: 6)], spacing: 6) {
-                fact(String(localized: "High"), ValueText.temperature(day.high))
-                fact(String(localized: "Low"), ValueText.temperature(day.low))
-                fact(String(localized: "Precipitation"), ValueText.millimetres(day.precipMM))
-                fact(String(localized: "Chance of 1 mm+"), ValueText.percent(day.precipChance))
-            }
-
-            Text(verbatim: CertaintyText.dotsSentence(day))
-                .font(.inter(13, .regular, relativeTo: .footnote))
-                .foregroundStyle(Color(Palette.textBody))
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityHidden(true)
-
-            Text("HOW THE SOURCES WERE WEIGHTED FOR THE HIGH")
-                .font(.inter(11.5, .extraBold, relativeTo: .caption2))
-                .tracking(0.7)
-                .foregroundStyle(Color(Palette.textSecondary))
-                .accessibilityAddTraits(.isHeader)
-
-            VStack(spacing: 6) {
-                ForEach(day.weights.filter { $0.weight > 0 }, id: \.id) { item in
-                    HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 3).fill(Color(Palette.source(item.id)))
-                            .frame(width: 12, height: 12)
-                        Text(verbatim: SourceText.label(for: item.id, in: sources))
-                            .font(.inter(13.5, .semibold, relativeTo: .subheadline))
-                        Spacer(minLength: 8)
-                        Text(verbatim: ValueText.share(total > 0 ? item.weight / total : 0))
-                            .font(.inter(13.5, .bold, relativeTo: .subheadline))
-                            .monospacedDigit()
-                    }
-                    .accessibilityElement(children: .combine)
-                }
-            }
-        }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 18).fill(Color(Palette.detail)))
-    }
-
-    private func fact(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(verbatim: label).font(.inter(11.5, .regular, relativeTo: .caption2))
-                .foregroundStyle(Color(Palette.textSecondary))
-            Text(verbatim: value).font(.inter(15, .extraBold, relativeTo: .subheadline))
-        }
-        .padding(.horizontal, 10).padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(Palette.ink).opacity(0.35)))
         .accessibilityElement(children: .combine)
     }
 }
