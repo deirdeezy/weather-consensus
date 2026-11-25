@@ -40,7 +40,7 @@ struct ContentView: View {
             }
             Tab(value: TabID.places) {
                 PlaceholderScreen(title: String(localized: "Places"), systemImage: "mappin.and.ellipse",
-                                  message: String(localized: "Kitimat for now. More places come in Stage 4."))
+                                  message: String(localized: "Kitimat for now. More places are coming."))
             } label: {
                 Label("Places", systemImage: "mappin.and.ellipse")
             }

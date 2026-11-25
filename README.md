@@ -2,7 +2,7 @@
 
 Many forecasts. One answer.
 
-An iOS weather app that blends up to 12 forecast models, weights each one by how right it has been at your place, and tells you how much to trust each day with a Certainty rating. No ads, no tracking, no account.
+An iOS weather app that blends several forecast models, weighted by how well each has done at each place, and tells you how much to trust each day with a Certainty rating. No ads, no tracking, no account.
 
 Made in Kitimat, BC.
 
