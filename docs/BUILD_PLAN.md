@@ -1,6 +1,6 @@
 # Build plan
 
-Current stage: **Stage 2 in progress** (owner approved a public repo, Actions and Pages on 25 Nov 2026 UTC). Steps 1 to 5 ready; waiting for the owner's "approved" on the privacy scan before the first push. Nothing pushed yet. Design: `docs/HOSTING.md`.
+Current stage: **Stage 2: live, shadow run started** (25 Nov 2026 UTC). Public repo https://github.com/deirdeezy/weather-consensus; hourly and nightly workflows on; `kitimat.json` at https://deirdeezy.github.io/weather-consensus/kitimat.json. The workflows are now the only writers of the `data` branch; the local `data/store/` is an old copy. Design: `docs/HOSTING.md`.
 
 Repo privacy fix (done 24 Nov 2026): local history rewritten so no commit holds personal details, and every commit's author and committer is the GitHub noreply identity. Not pushed; no GitHub repo yet.
 
@@ -21,13 +21,13 @@ Repo privacy fix (done 24 Nov 2026): local history rewritten so no commit holds 
 7. Acceptance: tests pass; backtest unchanged; one live run produces a valid `kitimat.json`; refusals logged. (Done 25 Nov 2026: 42 tests pass; backtest day 1 high 1.004, low 1.008; live run pulled 3 new runs with 0 refusals and wrote a valid `kitimat.json`; excerpt in `docs/JSON_SCHEMA.md`.)
 
 ## Stage 2: hosting and shadow run
-1. GitHub CLI installed (Homebrew, gh 2.105.0). Sign-in started for the deirdeezy account (`workflow` scope); the owner finishes it in the browser.
+1. GitHub CLI installed (Homebrew, gh 2.105.0), signed in as deirdeezy with the `workflow` scope. (Done 25 Nov 2026.)
 2. Saved data on a `data` branch, not `main`: refresh state, raw pulls (incl. the ensemble record), Single Runs, the normal, scores, refusal log. Nightly re-downloads go to the Actions cache, not Git. Seeded from the Stage 1 store by `backend/ci/seed_data_branch.sh` (1.9 MiB packed; commits only with a noreply identity). Measured growth: about 10 to 15 MB a month. GitHub limits checked (sources in `docs/HOSTING.md`). (Done 25 Nov 2026.)
 3. Workflows: `refresh.yml` (minute 17 hourly) and `nightly.yml` (09:47 and 15:47 UTC; the second run rescores only if ECCC was late). Pages deployed from the workflow; `public/*.json` stays out of `main`. One concurrency queue (`queue: max`) so two runs never overlap and none is dropped. Every refusal logged and shown on the run page. 6-hour stale flag kept. Least-privilege permissions per job; actions pinned to SHAs. Keepalive for the 60-day rule. (Done 25 Nov 2026.)
 4. Local test (`backend/ci/local_test.sh`, stand-in GitHub repo, live data): all checks passed; hourly 11 s, forced nightly 19 s. `actionlint` and `shellcheck` clean. 43 tests pass; backtest unchanged. Not testable locally: scheduler, cache, permissions, Pages, runner address limits. (Done 25 Nov 2026.)
-5. Privacy scan of every file and commit on `main` and `data`: nothing personal found (25 Nov 2026). Waiting for the owner's "approved".
-6. After approval: create public repo `deirdeezy/weather-consensus`, push `main` and `data`, Pages source = GitHub Actions, run both workflows by hand.
-7. Report: time taken, refusals, Pages link to `kitimat.json`, confirmed loading.
+5. Privacy scan of every file and commit on `main` and `data`: nothing personal found. Owner approved. (Done 25 Nov 2026.)
+6. Public repo `deirdeezy/weather-consensus` created; `main` and `data` pushed; Pages source = GitHub Actions (only `main` may deploy). Both workflows run by hand: hourly refresh success (refresh job 23 s, deploy 11 s; no source had a new run yet); nightly forced success (score job 34 s, deploy 17 s, keepalive re-enabled both workflows; download cache saved, 0.4 MB). Data branch commit by `github-actions[bot]`. (Done 25 Nov 2026, 04:05 to 04:08 UTC.)
+7. Report: about 2.5 minutes from repo creation to both runs done; 0 refusals; `kitimat.json` loads from Pages (HTTP 200, 6,497 bytes, `application/json`). Not yet seen: a scheduled run (first due 04:17 UTC), a real pull from a GitHub runner address. (Done 25 Nov 2026.)
 
 Then:
 - Shadow run 2 to 4 weeks: compare live Consensus to the station every day (not built yet; `live_scores.csv` scores each source, not the Consensus). Track refused runs; if more than about 1 in 20, move the main route to an always-on home Mac.
