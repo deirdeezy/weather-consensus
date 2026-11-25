@@ -72,6 +72,12 @@ nonisolated enum ValueText {
         return midnight.formatted(Date.FormatStyle(timeZone: .gmt).weekday(.abbreviated))
     }
 
+    /// "W": one letter, for the Consensus tab's day-by-day chart.
+    static func narrowWeekday(_ date: LocalDate) -> String {
+        guard let midnight = date.utcMidnight else { return date.description }
+        return midnight.formatted(Date.FormatStyle(timeZone: .gmt).weekday(.narrow))
+    }
+
     /// "Wednesday".
     static func fullWeekday(_ date: LocalDate) -> String {
         guard let midnight = date.utcMidnight else { return date.description }

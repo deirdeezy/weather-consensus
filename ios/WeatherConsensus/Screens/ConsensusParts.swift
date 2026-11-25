@@ -44,16 +44,24 @@ struct CertaintyBadge: View {
     }
 }
 
-/// Canvas breakdown ring: 72 pt, 8 pt stroke, percentage inside.
+/// Canvas breakdown ring: 72 pt, 8 pt stroke, percentage inside. The Consensus tab draws it at 62 pt
+/// (hero) and 50 pt (examples); the stroke and text keep the same proportions.
 struct BigCertaintyRing: View {
     let day: PlaceForecast.Day
-    @ScaledMetric(relativeTo: .title2) private var size: CGFloat = 72
+    @ScaledMetric private var size: CGFloat
+    private let fontSize: CGFloat
+
+    init(day: PlaceForecast.Day, size: CGFloat = 72, fontSize: CGFloat = 18) {
+        self.day = day
+        _size = ScaledMetric(wrappedValue: size, relativeTo: .title2)
+        self.fontSize = fontSize
+    }
 
     var body: some View {
         ZStack {
             CertaintyRing(certainty: day.certainty, tier: day.certaintyTier, lineWidth: 8 * size / 72)
             Text(verbatim: ValueText.percent(day.certainty))
-                .font(.inter(18, .extraBold, relativeTo: .title2))
+                .font(.inter(fontSize, .extraBold, relativeTo: .title2))
                 .monospacedDigit()
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)

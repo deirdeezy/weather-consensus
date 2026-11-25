@@ -1,8 +1,25 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ (%@)" : {
+      "comment" : "Station name, then its network in brackets",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "%@ has no weather station of its own, so its weights are borrowed and its numbers are not checked here." : {
+      "comment" : "Step 2 text for a place with no station. The value is the place name."
+    },
     "%@ normal (1991 to 2020)" : {
       "comment" : "Source name: the place's 1991 to 2020 climate normal. The value is the place name."
+    },
+    "%@'s consensus" : {
+      "comment" : "Step 4 heading over day 1's source bar. The value is a weekday."
     },
     "%@. %@, chance %@. High %@, low %@. %@." : {
       "comment" : "VoiceOver label for a closed day row: date, precipitation, chance, high, low, Certainty and tier",
@@ -11,6 +28,17 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@. %2$@, chance %3$@. High %4$@, low %5$@. %6$@."
+          }
+        }
+      }
+    },
+    "%@: %lld sources blend into one consensus. %@." : {
+      "comment" : "VoiceOver label for the Consensus tab hero diagram: weekday, number of sources, Certainty",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$lld sources blend into one consensus. %3$@."
           }
         }
       }
@@ -26,6 +54,9 @@
         }
       }
     },
+    "%lld forecast models" : {
+      "comment" : "Step 1 heading over the model chips; counted from the file"
+    },
     "%lld of 10 dots: about %lld of every 10 days like this land within 2 degrees Celsius of our high" : {
       "comment" : "VoiceOver label for the 10 Certainty dots",
       "localizations" : {
@@ -36,6 +67,9 @@
           }
         }
       }
+    },
+    "1 forecast model" : {
+
     },
     "14-day forecast" : {
 
@@ -48,6 +82,9 @@
     },
     "A newer forecast needs an app update. Showing the last saved forecast." : {
 
+    },
+    "About %lld of 10 days like this land within 2 °C." : {
+      "comment" : "Step 5 worked example, under the 10 dots"
     },
     "Certainty" : {
 
@@ -63,11 +100,17 @@
         }
       }
     },
+    "Certainty by day: %@" : {
+      "comment" : "VoiceOver label for the 14-day Certainty chart; the list is dates with their Certainty"
+    },
     "Certainty not available" : {
 
     },
     "Chance of 1 mm+" : {
 
+    },
+    "Checked against" : {
+      "comment" : "Step 2 tile label: the truth station"
     },
     "China CMA" : {
       "comment" : "Source name: China Meteorological Administration"
@@ -96,6 +139,9 @@
     "Data" : {
 
     },
+    "Day %lld" : {
+      "comment" : "Lead day, 1 to 14"
+    },
     "Done" : {
 
     },
@@ -114,10 +160,25 @@
     "Every day blends several forecast sources, weighted by how well each has done here. The ring is the chance the high lands within 2 °C (3.6 °F) of our number." : {
 
     },
+    "Every hour we check each source for a new forecast run and pull it." : {
+      "comment" : "Step 1 text, when the file has no climate normal"
+    },
+    "Every hour we check each source for a new forecast run and pull it. Further out, %@'s 1991 to 2020 normal joins in as one more source." : {
+      "comment" : "Step 1 text. The value is the place name."
+    },
+    "Every night we score each source's recent forecasts against what really happened at the %@ weather station." : {
+      "comment" : "Step 2 text. The value is the truth station's name."
+    },
+    "Every source has quirks in %@. We correct them before they count, using the last 30 days of results." : {
+      "comment" : "Step 3 text. The value is the place name."
+    },
     "Exact values" : {
 
     },
     "Expanded" : {
+
+    },
+    "Further out, the consensus shifts" : {
 
     },
     "High" : {
@@ -138,7 +199,7 @@
     "How it works ›" : {
 
     },
-    "How your forecast is made, source by source. Coming next." : {
+    "How sure we are, day by day" : {
 
     },
     "Japan JMA" : {
@@ -147,11 +208,23 @@
     "Kitimat for now. More places are coming." : {
 
     },
+    "Latest scores" : {
+      "comment" : "Step 2 tile label: the date of the nightly scores"
+    },
     "Low" : {
       "comment" : "Certainty tier, under 50%"
     },
+    "Many forecasts in. One consensus out." : {
+      "comment" : "Consensus tab hero title. Never a fixed number of sources."
+    },
     "Medium" : {
       "comment" : "Certainty tier, 50 to 74%"
+    },
+    "Most weather apps show you one computer model. We pull every major one and weigh them by track record into one consensus. %@ has no weather station of its own, so its weights are borrowed and not checked here. Then we tell you how sure we are." : {
+      "comment" : "Consensus tab hero text for a place with no station. The value is the place name."
+    },
+    "Most weather apps show you one computer model. We pull every major one, check each against what really happened in %@, and weigh them by track record into one consensus. Then we tell you how sure we are." : {
+      "comment" : "Consensus tab hero text. The value is the place name."
     },
     "Météo-France" : {
       "comment" : "Source name, do not translate"
@@ -164,6 +237,9 @@
     },
     "No source weights for this day" : {
 
+    },
+    "Not every model runs two weeks ahead, and each one's track record changes with the range, so the blend changes from day to day." : {
+      "comment" : "Step 4 text under the day 1, 7 and 13 bars"
     },
     "Odds that %@'s high lands within 2 °C of %@." : {
       "comment" : "Opened day row, beside the big Certainty ring. First value is a weekday name, second the forecast high.",
@@ -182,6 +258,17 @@
     "Offline. Showing the last saved forecast." : {
 
     },
+    "On day %lld, the %@ is %@ of the high." : {
+      "comment" : "Step 4: the climate normal's share on the last bar. Values: lead day, normal's name, share",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "On day %1$lld, the %2$@ is %3$@ of the high."
+          }
+        }
+      }
+    },
     "Opens the Consensus tab" : {
 
     },
@@ -193,6 +280,9 @@
     },
     "Places, units, alerts and look will live here." : {
 
+    },
+    "Plus the normal" : {
+      "comment" : "Step 1 heading over the climate normal chip"
     },
     "Precipitation" : {
 
@@ -221,11 +311,28 @@
     "Sources for the high: %@" : {
       "comment" : "VoiceOver label for the source bar; the list is source names with their share"
     },
+    "Sources that have been closer lately count for more. Weights update every day, so the consensus leans toward whoever is doing best right now. Shares shown are for the high." : {
+      "comment" : "Step 4 text"
+    },
     "Stale: no new forecast data in over %lld hours. Numbers may be out of date." : {
 
     },
+    "Step %lld: %@" : {
+      "comment" : "VoiceOver heading for a numbered step on the Consensus tab",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Step %1$lld: %2$@"
+          }
+        }
+      }
+    },
     "Tap a day for details" : {
 
+    },
+    "The ring on every day is the odds its high lands within 2 °C (3.6 °F) of our number. Think of it as days out of 10." : {
+      "comment" : "Step 5 text"
     },
     "This forecast needs an app update." : {
 
@@ -262,11 +369,32 @@
     "WEIGHT" : {
 
     },
+    "We check their homework" : {
+
+    },
+    "We fix their habits" : {
+
+    },
+    "We gather" : {
+
+    },
+    "We tell you how sure we are" : {
+
+    },
+    "We weight by track record" : {
+
+    },
     "Weather" : {
+
+    },
+    "Weather Consensus" : {
 
     },
     "What %@ looks like" : {
 
+    },
+    "consensus" : {
+      "comment" : "Small label under the blended bar in the hero diagram"
     },
     "means about %lld of every 10 days like this land within 2 °C" : {
 

@@ -153,3 +153,12 @@ nonisolated struct SkyStyle: Equatable, Sendable {
         ],
     ]
 }
+
+extension SkyStyle {
+    /// The sky for a place right now: time of day from the real sun, weather from the file (none in v1).
+    /// Shared by every tab that sits on the living sky.
+    static func current(for forecast: PlaceForecast?, now: Date) -> SkyStyle {
+        guard let forecast else { return SkyStyle(time: .day, weather: nil) }
+        return SkyStyle(time: SkyTime.at(now, place: forecast.place), weather: SkyWeather.from(forecast))
+    }
+}

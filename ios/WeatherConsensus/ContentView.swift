@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// App shell: tabs Weather, Radar, Consensus, Places (locked). Only Weather is built so far;
+/// App shell: tabs Weather, Radar, Consensus, Places (locked). Weather and Consensus are built;
 /// the gear on Weather opens Settings (a placeholder for now).
 struct ContentView: View {
     enum TabID: String, Hashable {
@@ -33,8 +33,7 @@ struct ContentView: View {
                 Label("Radar", systemImage: "map")
             }
             Tab(value: TabID.consensus) {
-                PlaceholderScreen(title: String(localized: "Consensus"), image: ConsensusGlyph.image,
-                                  message: String(localized: "How your forecast is made, source by source. Coming next."))
+                ConsensusScreen(model: model)
             } label: {
                 Label { Text("Consensus") } icon: { Image(uiImage: ConsensusGlyph.image) }
             }
@@ -49,6 +48,11 @@ struct ContentView: View {
         .sheet(isPresented: $showSettings) {
             SettingsScreen()
         }
+        #if DEBUG
+        .onAppear {
+            if let tab = DebugLaunch.tab { selection = tab }
+        }
+        #endif
     }
 
     static func makeModel() -> ForecastScreenModel {
@@ -140,12 +144,19 @@ enum ConsensusGlyph {
 /// - `-fixture`: show the saved 25 Nov 2026 file (real data) instead of the network.
 /// - `-offline`: with `-fixture`, every refresh fails as offline.
 /// - `-now 2026-11-25T16:30:00Z`: pretend it is this time (for the stale-data case).
+/// - `-tab consensus`: open on that tab.
 enum DebugLaunch {
     static var arguments: [String] { ProcessInfo.processInfo.arguments }
 
     static func model() -> ForecastScreenModel? {
         guard arguments.contains("-fixture") else { return nil }
         return .previewFixture(offline: arguments.contains("-offline"))
+    }
+
+    /// `-tab consensus`: open on this tab (screenshots).
+    static var tab: ContentView.TabID? {
+        guard let index = arguments.firstIndex(of: "-tab"), arguments.indices.contains(index + 1) else { return nil }
+        return ContentView.TabID(rawValue: arguments[index + 1])
     }
 
     static var now: Date? {

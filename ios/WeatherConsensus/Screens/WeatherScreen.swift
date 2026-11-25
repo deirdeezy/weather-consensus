@@ -39,7 +39,7 @@ struct WeatherScreen: View {
             .scrollIndicators(.hidden)
             .background { SkyView(style: style) }
             .overlay {
-                if model.forecast == nil { emptyState(style: style) }
+                if model.forecast == nil { NoForecastView(model: model, style: style) }
             }
             .refreshable { await model.load() }
         }
@@ -60,7 +60,7 @@ struct WeatherScreen: View {
             VStack(spacing: 14) {
                 header(style: style)
                 if let forecast = model.forecast {
-                    StatusCard(forecast: forecast, now: now, problemNote: problemNote)
+                    StatusCard(forecast: forecast, now: now, problemNote: model.problemNote)
                     CertaintyExplainer(forecast: forecast, openConsensus: openConsensus)
                 }
             }
@@ -76,90 +76,23 @@ struct WeatherScreen: View {
     }
 
     private func header(style: SkyStyle) -> some View {
-        let ink = Color(style.headerInk)
-        let backdrop = Color(style.headerBackdrop.color).opacity(style.headerBackdrop.opacity)
-        return HStack(spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: "mappin")
-                    .font(.inter(17, .bold, relativeTo: .title2))
-                    .accessibilityHidden(true)
-                Text(verbatim: model.forecast?.place.name ?? "")
-                    .font(.inter(24, .extraBold, relativeTo: .title))
-                    .tracking(-0.24)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-            }
-            .foregroundStyle(ink)
-            .padding(.horizontal, 14)
-            .frame(minHeight: 44)
-            .background(Capsule().fill(backdrop))
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-            .opacity(model.forecast == nil ? 0 : 1)
-
+        HStack(spacing: 12) {
+            PlaceTitlePill(name: model.forecast?.place.name, style: style)
             Spacer(minLength: 0)
-
             Button(action: openSettings) {
                 Image(systemName: "gearshape")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(ink)
+                    .foregroundStyle(Color(style.headerInk))
                     .frame(width: 44, height: 44)
-                    .background(Circle().fill(backdrop))
+                    .background(Circle().fill(Color(style.headerBackdrop.color).opacity(style.headerBackdrop.opacity)))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Settings"))
         }
     }
 
-    private func emptyState(style: SkyStyle) -> some View {
-        VStack(spacing: 14) {
-            if model.isLoading {
-                ProgressView().tint(Color(style.headerInk))
-            } else {
-                Card {
-                    VStack(spacing: 8) {
-                        Image(systemName: "icloud.slash").font(.system(size: 30)).accessibilityHidden(true)
-                        Text("No forecast yet").font(.inter(18, .extraBold, relativeTo: .headline))
-                        Text(problemNote ?? String(localized: "Pull down to try again."))
-                            .font(.inter(14, .regular, relativeTo: .subheadline))
-                            .foregroundStyle(Color(Palette.textBody))
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .frame(maxWidth: 420)
-                .padding(24)
-            }
-        }
-    }
-
     private func skyStyle(now: Date) -> SkyStyle {
-        guard let forecast = model.forecast else {
-            return SkyStyle(time: .day, weather: nil)
-        }
-        return SkyStyle(time: SkyTime.at(now, place: forecast.place), weather: SkyWeather.from(forecast))
-    }
-
-    /// Why the screen is showing an older file, if it is.
-    private var problemNote: String? {
-        guard let problem = model.problem else { return nil }
-        let hasForecast = model.forecast != nil
-        switch problem {
-        case .unsupportedSchemaVersion:
-            return hasForecast
-                ? String(localized: "A newer forecast needs an app update. Showing the last saved forecast.")
-                : String(localized: "This forecast needs an app update.")
-        case .offline:
-            return hasForecast
-                ? String(localized: "Offline. Showing the last saved forecast.")
-                : String(localized: "Offline.")
-        case .storage:
-            return String(localized: "Could not save the forecast on this phone.")
-        case .httpStatus, .network, .unreadable:
-            return hasForecast
-                ? String(localized: "Could not refresh. Showing the last saved forecast.")
-                : String(localized: "Could not load the forecast.")
-        }
+        SkyStyle.current(for: model.forecast, now: now)
     }
 }
 
@@ -178,6 +111,84 @@ struct Card<Content: View>: View {
             .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Color(Palette.card)))
             .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(Color.white.opacity(0.12)))
             .shadow(color: Color(Palette.ink).opacity(0.22), radius: 12, y: 10)
+    }
+}
+
+/// The place name on the sky, on a soft pill so it keeps 6:1 or more on every sky (owner approved, step 3b).
+struct PlaceTitlePill: View {
+    let name: String?
+    let style: SkyStyle
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "mappin")
+                .font(.inter(17, .bold, relativeTo: .title2))
+                .accessibilityHidden(true)
+            Text(verbatim: name ?? "")
+                .font(.inter(24, .extraBold, relativeTo: .title))
+                .tracking(-0.24)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+        }
+        .foregroundStyle(Color(style.headerInk))
+        .padding(.horizontal, 14)
+        .frame(minHeight: 44)
+        .background(Capsule().fill(Color(style.headerBackdrop.color).opacity(style.headerBackdrop.opacity)))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .opacity(name == nil ? 0 : 1)
+    }
+}
+
+/// Shown when there is no forecast at all yet: a spinner while loading, otherwise why, and how to retry.
+struct NoForecastView: View {
+    let model: ForecastScreenModel
+    let style: SkyStyle
+
+    var body: some View {
+        VStack(spacing: 14) {
+            if model.isLoading {
+                ProgressView().tint(Color(style.headerInk))
+            } else {
+                Card {
+                    VStack(spacing: 8) {
+                        Image(systemName: "icloud.slash").font(.system(size: 30)).accessibilityHidden(true)
+                        Text("No forecast yet").font(.inter(18, .extraBold, relativeTo: .headline))
+                        Text(model.problemNote ?? String(localized: "Pull down to try again."))
+                            .font(.inter(14, .regular, relativeTo: .subheadline))
+                            .foregroundStyle(Color(Palette.textBody))
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .frame(maxWidth: 420)
+                .padding(24)
+            }
+        }
+    }
+}
+
+extension ForecastScreenModel {
+    /// Why the screen is showing an older file, if it is.
+    var problemNote: String? {
+        guard let problem else { return nil }
+        let hasForecast = forecast != nil
+        switch problem {
+        case .unsupportedSchemaVersion:
+            return hasForecast
+                ? String(localized: "A newer forecast needs an app update. Showing the last saved forecast.")
+                : String(localized: "This forecast needs an app update.")
+        case .offline:
+            return hasForecast
+                ? String(localized: "Offline. Showing the last saved forecast.")
+                : String(localized: "Offline.")
+        case .storage:
+            return String(localized: "Could not save the forecast on this phone.")
+        case .httpStatus, .network, .unreadable:
+            return hasForecast
+                ? String(localized: "Could not refresh. Showing the last saved forecast.")
+                : String(localized: "Could not load the forecast.")
+        }
     }
 }
 

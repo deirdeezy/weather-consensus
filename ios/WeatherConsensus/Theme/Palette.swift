@@ -58,6 +58,8 @@ nonisolated enum Palette {
     static let textBody = RGB(0xDCE7F6)      // body copy on navy
     static let link = RGB(0x8CC8FF)          // links, chance of precipitation
     static let rain = RGB(0x8CC8FF)
+    /// Consensus tab hero panel: canvas rgba(9,26,54,0.5) over the navy card.
+    static let heroPanel = RGB(0x091A36).over(card, alpha: 0.5)
 
     // Certainty tiers (canvas dot colours)
     static let tierHigh = RGB(0x3DD68C)
