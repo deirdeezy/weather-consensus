@@ -3,6 +3,7 @@
 Run from the repo root (after score.py or the backfill has saved Single Runs):
     uv run python backend/scripts/horizon.py
     uv run python backend/scripts/horizon.py --cap-test   # the 35% cap and the normal, days 8 to 14
+    uv run python backend/scripts/horizon.py --group-test # models as one group vs the normal, days 8 to 14
 
 Reads:
 - data/store/kitimat/single/<model>/<date>.json  (Open-Meteo Single Runs, 00 UTC,
@@ -198,8 +199,94 @@ def cap_test():
         print(f"   Brier, highs days 8 to 14, {k}: {((a.p - a.hit) ** 2).mean():.4f}")
 
 
+def group_blend(M: pd.Series, Nf: pd.Series, o: pd.Series, lead: int, method: str) -> pd.DataFrame:
+    """Two-way blend of the model-group consensus M and the habit-fixed normal Nf.
+    share = the group's share, from trailing 60-day errors known at issue time:
+      inverse  share = (1/mse_M) / (1/mse_M + 1/mse_N)
+      pair     share = (mse_N - cov) / (mse_M + mse_N - 2 cov), clipped to [0, 1];
+               the best fixed mix of two forecasts whose misses move together."""
+    eM, eN = M - o, Nf - o
+    tr = lambda x: cs._trailing(x, lead, cs.WEIGHT_DAYS, 20)  # noqa: E731
+    mM, mN, cov = tr(eM ** 2), tr(eN ** 2), tr(eM * eN)
+    if method == "inverse":
+        share = (1 / mM) / (1 / mM + 1 / mN)
+    else:
+        den = mM + mN - 2 * cov
+        share = ((mN - cov) / den).where(den > 1e-9).clip(0, 1)
+    return pd.DataFrame({"consensus": share * M + (1 - share) * Nf, "share_models": share})
+
+
+def group_test():
+    """Days 8 to 14: blend the models as one group against the normal."""
+    obs, normal, models, dates = load()
+    N = hz.normal_for(normal, dates)
+    halves = {"Jul-Sep": (EVAL_FROM, pd.Timestamp("2026-09-30").date()),
+              "Oct-Nov": (pd.Timestamp("2026-10-01").date(), obs.index.max())}
+    names = ["current", "group inverse", "group pair", "models only", "normal alone"]
+    rows, calib = [], []
+    for var in ("tmax", "tmin"):
+        o = obs[var]
+        for lead in range(hz.NORMAL_FROM_LEAD, 15):
+            F = frame(models, lead, var, dates)
+            det = cs.temperature_consensus(F, o, lead)
+            cur = cs.temperature_consensus(F.assign(normal=N[var]), o, lead)
+            Nf = N[var] - cs._trailing(N[var] - o, lead, cs.BIAS_DAYS, 10)
+            gi = group_blend(det.consensus, Nf, o, lead, "inverse")
+            gp = group_blend(det.consensus, Nf, o, lead, "pair")
+            fc = {"current": cur.consensus, "group inverse": gi.consensus, "group pair": gp.consensus,
+                  "models only": det.consensus, "normal alone": Nf}
+            spread = {"current": cur.spread, "group inverse": det.spread, "group pair": det.spread}
+            share = {"current": 1 - cur["w_normal"], "group inverse": gi.share_models,
+                     "group pair": gp.share_models}
+            ok = pd.concat(fc.values(), axis=1).notna().all(axis=1) & o.notna()
+            ok &= pd.Series(ok.index >= EVAL_FROM, index=ok.index)
+            for k in names:
+                err = (fc[k] - o).abs()[ok]
+                row = {"var": var, "lead": lead, "variant": k, "n": int(ok.sum()), "all": err.mean(),
+                       "models_share": share[k][ok].mean() if k in share else np.nan}
+                for h, (a, b) in halves.items():
+                    m = (err.index >= a) & (err.index <= b)
+                    row[h] = err[m].mean()
+                if var == "tmax" and k in spread:
+                    mae = cs.consensus_trailing_mae(fc[k], o, lead)
+                    pr = cert.certainty(mae, spread[k], cs.spread_reference(spread[k], lead))[ok]
+                    p0 = cert.certainty(mae)[ok]  # without the disagreement term
+                    hit = (err < cert.TOLERANCE_C).astype(float)
+                    row["said"], row["came_true"] = pr.mean(), hit.mean()
+                    calib.append(pd.DataFrame({"variant": k, "lead": lead, "p": pr, "p0": p0, "hit": hit}))
+                rows.append(row)
+    R = pd.DataFrame(rows)
+    pd.set_option("display.width", 220)
+    print(f"Days 8 to 14, average miss in deg C, scored {EVAL_FROM} to {obs.dropna(how='all').index.max()}, "
+          "Kitimat Forest Ave. Same days for every variant.\n")
+    for var in ("tmax", "tmin"):
+        r = R[R["var"] == var]
+        print(f"== {var}: average miss\n", r.pivot(index="lead", columns="variant", values="all")[names]
+              .round(3).to_string(), "\n")
+        print(f"== {var}: models' share (rest is the normal)\n",
+              r.pivot(index="lead", columns="variant", values="models_share")[names[:3]].round(3).to_string(), "\n")
+        for h in list(halves) + ["all"]:
+            m = r.groupby("variant")[h].mean()[names]
+            print(f"   {var} mean over days 8 to 14, {h:7s}: " + ", ".join(f"{k} {v:.3f}" for k, v in m.items()))
+        print()
+    r = R[(R["var"] == "tmax") & R.variant.isin(names[:3])]
+    print("== Certainty, highs: said / came true by lead\n",
+          r.pivot(index="lead", columns="variant", values="said")[names[:3]].round(3).add_suffix(" said")
+          .join(r.pivot(index="lead", columns="variant", values="came_true")[names[:3]].round(3)
+                .add_suffix(" true")).to_string(), "\n")
+    A = pd.concat(calib)
+    for k in names[:3]:
+        a = A[A.variant == k]
+        fixed = a.groupby("lead").hit.transform("mean")  # one rate per lead, picked with hindsight
+        print(f"   Brier, highs days 8 to 14, {k}: {((a.p - a.hit) ** 2).mean():.4f}; "
+              f"without the disagreement term {((a.p0 - a.hit) ** 2).mean():.4f}; "
+              f"fixed rate per lead (hindsight) {((fixed - a.hit) ** 2).mean():.4f}")
+
+
 if __name__ == "__main__":
-    if "--cap-test" in sys.argv:
+    if "--group-test" in sys.argv:
+        group_test()
+    elif "--cap-test" in sys.argv:
         cap_test()
     else:
         run()
