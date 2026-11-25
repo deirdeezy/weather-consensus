@@ -224,3 +224,4 @@
 {"time": "2026-11-25T20:04:20Z", "place": "kitimat", "source": "meteofrance_seamless", "kind": "limit", "detail": "try 7/8: Daily API request limit exceeded. Please try again tomorrow."}
 {"time": "2026-11-25T20:04:37Z", "place": "kitimat", "source": "meteofrance_seamless", "kind": "limit", "detail": "try 8/8: Daily API request limit exceeded. Please try again tomorrow."}
 {"time": "2026-11-25T20:04:55Z", "place": "kitimat", "source": "meteofrance_seamless", "kind": "single_run", "detail": "2026-11-24: Daily API request limit exceeded. Please try again tomorrow."}
+{"time": "2026-11-25T23:45:12Z", "place": "kitimat", "source": "ecmwf_ifs", "kind": "meta", "detail": "ecmwf_ifs: <urlopen error _ssl.c:983: The handshake operation timed out>"}
