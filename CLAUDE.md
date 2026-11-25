@@ -6,6 +6,7 @@ iOS weather app (SwiftUI) that blends up to 12 forecast sources, weights each by
 - `docs/BUILD_PLAN.md`: stages, current stage, acceptance tests.
 - `docs/ALGORITHM.md`: the algorithm and every test result behind it.
 - `docs/XCODE.md`: what Xcode 27 can do for us and how to use it (iOS work).
+- `docs/HOSTING.md`: GitHub Actions, the `data` branch, Pages, limits and growth.
 - Design canvas (claude.ai artifact, owner can open): https://claude.ai/artifact/9faD7sbSkc3Tj5TjkRGfq2
 
 ## Writing style (for replies, docs, UI text and commit messages)
@@ -48,11 +49,13 @@ iOS weather app (SwiftUI) that blends up to 12 forecast sources, weights each by
 ## Layout
 ```
 backend/wxc/        Python package: daily.py, consensus.py, certainty.py, eccc.py, openmeteo.py
-backend/scripts/    backtest.py (reproduces the pilot), horizon.py, refresh.py, score.py, publish.py
+backend/scripts/    backtest.py (reproduces the pilot), horizon.py, refresh.py, score.py, publish.py, refusals.py
+backend/ci/         job scripts for .github/workflows (hourly.sh, nightly.sh, save_data.sh), local_test.sh
 config/             places.json, sources.json
 data/cache/         pilot downloads (git-ignored)
-docs/               BUILD_PLAN.md, ALGORITHM.md, XCODE.md, JSON_SCHEMA.md (+ place-v1.schema.json)
-public/             published JSON per place (later served by GitHub Pages)
+docs/               BUILD_PLAN.md, ALGORITHM.md, XCODE.md, JSON_SCHEMA.md (+ place-v1.schema.json), HOSTING.md
+public/             published JSON per place (git-ignored; deployed to GitHub Pages)
+.github/workflows/  refresh.yml (hourly), nightly.yml
 tests/              pytest
 ios/                SwiftUI app (stage 3)
 ```
