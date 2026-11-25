@@ -1,6 +1,6 @@
 # Build plan
 
-Current stage: **Stage 1 done** (backend core, Kitimat only, on the main development Mac; 25 Nov 2026 UTC). Next: Stage 2, which needs the owner's go-ahead (GitHub repo, Actions, Pages). Nothing pushed yet.
+Current stage: **Stage 2 in progress** (owner approved a public repo, Actions and Pages on 25 Nov 2026 UTC). Steps 1 to 5 ready; waiting for the owner's "approved" on the privacy scan before the first push. Nothing pushed yet. Design: `docs/HOSTING.md`.
 
 Repo privacy fix (done 24 Nov 2026): local history rewritten so no commit holds personal details, and every commit's author and committer is the GitHub noreply identity. Not pushed; no GitHub repo yet.
 
@@ -20,13 +20,19 @@ Repo privacy fix (done 24 Nov 2026): local history rewritten so no commit holds 
 6. `publish.py`: write `public/kitimat.json` (schema in `docs/JSON_SCHEMA.md`, written in this stage): days 1 to 14 with high, low, precip, chance of precip, Certainty, tier, source weights, updated time, data credits. (Done 25 Nov 2026: schema version 1, formal schema in `docs/place-v1.schema.json`; unknown fields allowed so additions never break older apps; stale flag after 6 h without a new pull; about 6.5 KB; tests in `tests/test_publish.py`. `public/*.json` is git-ignored until the Stage 2 deploy method is chosen.)
 7. Acceptance: tests pass; backtest unchanged; one live run produces a valid `kitimat.json`; refusals logged. (Done 25 Nov 2026: 42 tests pass; backtest day 1 high 1.004, low 1.008; live run pulled 3 new runs with 0 refusals and wrote a valid `kitimat.json`; excerpt in `docs/JSON_SCHEMA.md`.)
 
-## Stage 2: hosting and shadow run (ask owner before starting)
-- Create the public GitHub repo `weather-consensus`; push.
-- GitHub Actions: hourly refresh at minute 17, nightly scoring; JSON to GitHub Pages; 6-hour stale check with failover plan.
-- Shadow run 2 to 4 weeks: compare live Consensus to the station every day. Track refused runs; if more than about 1 in 20, move the main route to an always-on home Mac.
-- `data/store/` must persist between Actions runs (refresh state, saved Single Runs, our own ensemble record). Decide how before turning on Actions.
-- Decide how Pages gets `public/*.json` (deploy from the Actions run, or commit the files to a branch). The files are git-ignored for now.
-- Job order each hour: `refresh.py` then `publish.py`; nightly: `score.py` then `publish.py`.
+## Stage 2: hosting and shadow run
+1. GitHub CLI installed (Homebrew, gh 2.105.0). Sign-in started for the deirdeezy account (`workflow` scope); the owner finishes it in the browser.
+2. Saved data on a `data` branch, not `main`: refresh state, raw pulls (incl. the ensemble record), Single Runs, the normal, scores, refusal log. Nightly re-downloads go to the Actions cache, not Git. Seeded from the Stage 1 store by `backend/ci/seed_data_branch.sh` (1.9 MiB packed; commits only with a noreply identity). Measured growth: about 10 to 15 MB a month. GitHub limits checked (sources in `docs/HOSTING.md`). (Done 25 Nov 2026.)
+3. Workflows: `refresh.yml` (minute 17 hourly) and `nightly.yml` (09:47 and 15:47 UTC; the second run rescores only if ECCC was late). Pages deployed from the workflow; `public/*.json` stays out of `main`. One concurrency queue (`queue: max`) so two runs never overlap and none is dropped. Every refusal logged and shown on the run page. 6-hour stale flag kept. Least-privilege permissions per job; actions pinned to SHAs. Keepalive for the 60-day rule. (Done 25 Nov 2026.)
+4. Local test (`backend/ci/local_test.sh`, stand-in GitHub repo, live data): all checks passed; hourly 11 s, forced nightly 19 s. `actionlint` and `shellcheck` clean. 43 tests pass; backtest unchanged. Not testable locally: scheduler, cache, permissions, Pages, runner address limits. (Done 25 Nov 2026.)
+5. Privacy scan of every file and commit on `main` and `data`: nothing personal found (25 Nov 2026). Waiting for the owner's "approved".
+6. After approval: create public repo `deirdeezy/weather-consensus`, push `main` and `data`, Pages source = GitHub Actions, run both workflows by hand.
+7. Report: time taken, refusals, Pages link to `kitimat.json`, confirmed loading.
+
+Then:
+- Shadow run 2 to 4 weeks: compare live Consensus to the station every day (not built yet; `live_scores.csv` scores each source, not the Consensus). Track refused runs; if more than about 1 in 20, move the main route to an always-on home Mac.
+- After the first week: measure real `data` growth and which nightly slot gets ECCC's values; adjust times.
+- Day 60 (about 24 Jan 2027): confirm the scheduled workflows are still enabled.
 - Ensembles: from about 24 Jan 2027 (60 days of our own record), backtest adding them to days 8 to 14. They join only if they help.
 
 ## Stage 3: SwiftUI app (Xcode on the main development Mac; read docs/XCODE.md first)
