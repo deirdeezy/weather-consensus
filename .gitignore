@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Data
+data/cache/
+data/store/
+data/backtest_scores.csv
+
+# macOS
+.DS_Store
+
+# Xcode
+ios/**/xcuserdata/
+ios/**/build/
+DerivedData/
+
+# Claude Code local settings
+.claude/settings.local.json

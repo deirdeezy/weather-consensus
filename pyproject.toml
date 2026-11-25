@@ -1,0 +1,15 @@
+[project]
+name = "weather-consensus"
+version = "0.1.0"
+description = "Weather Consensus backend: blends forecast sources by track record"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
