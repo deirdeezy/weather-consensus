@@ -17,8 +17,8 @@ One file per place: `public/<place>.json` (for example `public/kitimat.json`), w
 | `place` | object | See below. |
 | `issued_at` | UTC time | When this file was written (`YYYY-MM-DDTHH:MM:SSZ`). |
 | `issue_date` | date | The ECCC climate day (UTC minus 6 h) the forecast was issued on. Day N = `issue_date` + N. |
-| `newest_run_at` | UTC time or null | Start time of the newest model run used. Use it for "Updated X hours ago". |
-| `fresh_data_at` | UTC time or null | When the backend last pulled any new run. |
+| `newest_run_at` | UTC time or null | Start time of the newest model run used. Not for "Updated X hours ago": a run starts hours before its data is available. |
+| `fresh_data_at` | UTC time or null | When the backend last pulled any new run. Use it for "Updated X hours ago"; if it is null, use `issued_at`. |
 | `stale` | boolean | True when no new run was pulled for more than `stale_after_hours`. The app shows it and lowers Certainty. |
 | `stale_after_hours` | number | `6` today. |
 | `weights_as_of` | date or null | Issue date of the nightly scores the weights and habit fixes come from. |

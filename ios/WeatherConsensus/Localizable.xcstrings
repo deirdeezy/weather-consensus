@@ -83,7 +83,7 @@
 
     },
     "Updated %lld hours ago" : {
-      "comment" : "How long ago the forecast file was published. Plural by hour count.",
+      "comment" : "How long ago the backend last got new forecast data. Plural by hour count.",
       "localizations" : {
         "en" : {
           "variations" : {

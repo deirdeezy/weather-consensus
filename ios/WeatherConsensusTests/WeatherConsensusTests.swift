@@ -259,22 +259,55 @@ struct LoaderTests {
 
 @Suite("Freshness")
 struct FreshnessTests {
-    @Test func hoursCountFromIssuedAt() throws {
+    @Test func hoursCountFromFreshDataAt() throws {
         let forecast = try Fixture.forecast()
-        let issued = forecast.issuedAt
-        #expect(Freshness(forecast: forecast, now: issued).hoursSinceIssued == 0)
-        #expect(Freshness(forecast: forecast, now: issued.addingTimeInterval(59 * 60)).hoursSinceIssued == 0)
-        #expect(Freshness(forecast: forecast, now: issued.addingTimeInterval(3 * 3600 + 120)).hoursSinceIssued == 3)
+        // Fixture: fresh_data_at 03:42:10Z, issued_at 04:07:24Z, newest_run_at 2026-11-24T18:00:00Z.
+        let fresh = try #require(forecast.freshDataAt)
+        #expect(Freshness(forecast: forecast, now: fresh).updatedAt == fresh)
+        #expect(Freshness(forecast: forecast, now: fresh).hoursSinceUpdate == 0)
+        #expect(Freshness(forecast: forecast, now: fresh.addingTimeInterval(59 * 60)).hoursSinceUpdate == 0)
+        #expect(Freshness(forecast: forecast, now: fresh.addingTimeInterval(3 * 3600 + 120)).hoursSinceUpdate == 3)
+        // 3 h 10 min after the pull is only 2 h 45 min after issued_at: counts from the pull, so 3.
+        #expect(Freshness(forecast: forecast, now: fresh.addingTimeInterval(3 * 3600 + 10 * 60)).hoursSinceUpdate == 3)
         // A phone clock behind the server never shows a negative age.
-        #expect(Freshness(forecast: forecast, now: issued.addingTimeInterval(-600)).hoursSinceIssued == 0)
+        #expect(Freshness(forecast: forecast, now: fresh.addingTimeInterval(-600)).hoursSinceUpdate == 0)
+    }
+
+    @Test func freshDataAtWinsOverIssuedAtAndNewestRun() throws {
+        var object = try Fixture.jsonObject()
+        object["fresh_data_at"] = "2026-11-25T01:00:00Z"
+        object["issued_at"] = "2026-11-25T05:00:00Z"
+        object["newest_run_at"] = "2026-11-24T12:00:00Z"
+        let forecast = try ForecastDecoder.decode(Fixture.encode(object))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-11-25T05:30:00Z"))
+        let freshness = Freshness(forecast: forecast, now: now)
+        #expect(freshness.updatedAt == forecast.freshDataAt)
+        #expect(freshness.hoursSinceUpdate == 4) // not 0 (issued_at) and not 17 (newest_run_at)
+        #expect(freshness.updatedText == "Updated 4 hours ago")
+    }
+
+    @Test func fallsBackToIssuedAtWhenFreshDataAtIsMissing() throws {
+        var object = try Fixture.jsonObject()
+        object["fresh_data_at"] = NSNull()
+        let withNull = try ForecastDecoder.decode(Fixture.encode(object))
+        object.removeValue(forKey: "fresh_data_at")
+        let withoutKey = try ForecastDecoder.decode(Fixture.encode(object))
+        for forecast in [withNull, withoutKey] {
+            #expect(forecast.freshDataAt == nil)
+            let issued = forecast.issuedAt
+            let freshness = Freshness(forecast: forecast, now: issued.addingTimeInterval(2 * 3600 + 60))
+            #expect(freshness.updatedAt == issued)
+            #expect(freshness.hoursSinceUpdate == 2)
+            #expect(freshness.updatedText == "Updated 2 hours ago")
+        }
     }
 
     @Test func updatedText() throws {
         let forecast = try Fixture.forecast()
-        let issued = forecast.issuedAt
-        #expect(Freshness(forecast: forecast, now: issued).updatedText == "Updated less than an hour ago")
-        #expect(Freshness(forecast: forecast, now: issued.addingTimeInterval(3600)).updatedText == "Updated 1 hour ago")
-        #expect(Freshness(forecast: forecast, now: issued.addingTimeInterval(5 * 3600)).updatedText == "Updated 5 hours ago")
+        let fresh = try #require(forecast.freshDataAt)
+        #expect(Freshness(forecast: forecast, now: fresh).updatedText == "Updated less than an hour ago")
+        #expect(Freshness(forecast: forecast, now: fresh.addingTimeInterval(3600)).updatedText == "Updated 1 hour ago")
+        #expect(Freshness(forecast: forecast, now: fresh.addingTimeInterval(5 * 3600)).updatedText == "Updated 5 hours ago")
     }
 
     @Test func freshFileIsNotStale() throws {
@@ -300,7 +333,7 @@ struct FreshnessTests {
         let now = freshDataAt.addingTimeInterval(6 * 3600 + 60)
         let freshness = Freshness(forecast: forecast, now: now)
         #expect(!freshness.fileSaysStale)
-        #expect(freshness.hoursSinceIssued == 5)
+        #expect(freshness.hoursSinceUpdate == 6)
         #expect(freshness.isStale)
     }
 
