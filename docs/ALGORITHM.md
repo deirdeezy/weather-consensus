@@ -113,6 +113,8 @@ Lows:
 - The live numbers use the same code and windows as the backtest. Check (`tests/test_score.py`, and 42 issue dates on pilot history): the live blend equals the backtest Consensus to within 0.0000000002 deg C. Station data from the issue day on is hidden, so nothing unknown at issue time is used.
 - History coverage: Meteo-France has days 1 to 3 only, UK Met Office days 1 to 4. Past that they get no weight (same as the pilot).
 - First live run (issue date 24 Nov 2026), day 1 high weights: UKMO 17%, ICON 15%, ECMWF AIFS 15%, GEM 14%, ECMWF IFS 10%, Meteo-France 9%, GFS 9%, JMA 7%, CMA 4%.
+- `backend/scripts/publish.py` (hourly, after refresh) blends each source's newest saved run with the stats in `scores.json` using the same code (`consensus.blend`, `certainty.certainty`) and writes `public/<place>.json` (`docs/JSON_SCHEMA.md`). Two live-only rules, not in the backtest (which always has each source's run for each lead): a source whose newest run is more than 24 h older than the newest run of any source counts as late and its share goes to the rest; a source whose run does not cover a day gets no weight that day (live, ICON and UK Met Office stop at day 6, Meteo-France at day 3, CMA at day 4, GEM at day 9, JMA at day 10).
+- First published file (issued 25 Nov 2026 03:42 UTC): Certainty for highs 91% on day 1, 58 to 70% on days 10 to 14. That is above the horizon test's 33 to 37% average for days 10 to 14 because the last 60 days were calm (consensus recent miss at day 14: 2.36 deg C, vs 3.59 over Jul to Nov). Certainty follows the recent record by design; watch it in the shadow run.
 
 ## Not yet tested
 - Ensembles at any lead (no history from Open-Meteo; our own record starts 25 Nov 2026; test after 60+ days).

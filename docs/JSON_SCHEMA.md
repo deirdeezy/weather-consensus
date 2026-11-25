@@ -54,3 +54,44 @@ Notes:
 - Weights are for the high only. Sources whose run does not reach a day get no weight that day (for example ICON and UK Met Office stop near day 6, Meteo-France near day 3), so `weights` can change length from day to day.
 - `normal` is the 1991 to 2020 climate normal, one more source from day 8 (highs and lows) as set by the horizon test (`docs/ALGORITHM.md`).
 - Precipitation weights are not published (version 1 has one source bar per day, for the high).
+
+## Example
+Day 1 and day 14 from the first live run, Kitimat (real data, issued 25 Nov 2026 03:42 UTC). Shortened (`...`) and spaced for reading; the published file has no spaces or line breaks.
+
+```json
+{
+  "schema_version": 1,
+  "place": {"id": "kitimat", "name": "Kitimat", "lat": 54.0536, "lon": -128.6336, "elevation_m": 98, "timezone": "America/Vancouver", "truth_station": {"network": "ECCC", "id": "1064324", "name": "Kitimat Forest Ave"}, "consensus_only": false},
+  "issued_at": "2026-11-25T03:42:27Z",
+  "issue_date": "2026-11-24",
+  "newest_run_at": "2026-11-24T18:00:00Z",
+  "fresh_data_at": "2026-11-25T03:42:10Z",
+  "stale": false,
+  "stale_after_hours": 6,
+  "weights_as_of": "2026-11-24",
+  "units": {"temperature": "degC", "precipitation": "mm", "chance": "percent"},
+  "sources": [...],
+  "days": [
+    {"day": 1, "date": "2026-11-25", "high": 6.3, "low": 2.4, "precip_mm": 21.2, "precip_chance": 100, "certainty": 91, "tier": "High",
+      "weights": [
+        {"id": "ukmo_seamless", "weight": 0.167},
+        {"id": "icon_seamless", "weight": 0.147},
+        {"id": "ecmwf_aifs025_single", "weight": 0.146},
+        {"id": "gem_seamless", "weight": 0.14},
+        {"id": "ecmwf_ifs", "weight": 0.105},
+        {"id": "meteofrance_seamless", "weight": 0.093},
+        {"id": "gfs_seamless", "weight": 0.09},
+        {"id": "jma_seamless", "weight": 0.069},
+        {"id": "cma_grapes_global", "weight": 0.044}
+      ]},
+    ...,
+    {"day": 14, "date": "2026-12-08", "high": 2.1, "low": -3.5, "precip_mm": 5.6, "precip_chance": 66, "certainty": 67, "tier": "Medium",
+      "weights": [
+        {"id": "ecmwf_aifs025_single", "weight": 0.35},
+        {"id": "normal", "weight": 0.35},
+        {"id": "gfs_seamless", "weight": 0.3}
+      ]}
+  ],
+  "credits": [...]
+}
+```
