@@ -45,6 +45,7 @@ SINGLE_RUNS = "https://single-runs-api.open-meteo.com/v1/forecast"
 FORECAST = "https://api.open-meteo.com/v1/forecast"
 ENSEMBLE = "https://ensemble-api.open-meteo.com/v1/ensemble"
 META = "https://{host}.open-meteo.com/data/{path}/static/meta.json"
+CREDIT = "Weather data by Open-Meteo.com (CC BY 4.0)"
 
 
 def meta_url(path: str, ensemble: bool = False) -> str:
@@ -56,8 +57,12 @@ class LimitRefused(RuntimeError):
     """Open-Meteo refused the call because the address hit its limit."""
 
 
-def get_json(url: str, tries: int = 8, log=print) -> dict:
-    """GET with retries. Raises LimitRefused if every try hits the rate limit."""
+def get_json(url: str, tries: int = 8, log=print, sleep=time.sleep) -> dict:
+    """GET with retries. Raises LimitRefused if no try succeeds.
+
+    log(kind, detail) is called for every failed try; kind is "limit" (rate
+    limit refusal) or "network" (no usable answer: reset, timeout, bad HTTP).
+    """
     last = None
     for k in range(tries):
         try:
@@ -68,16 +73,18 @@ def get_json(url: str, tries: int = 8, log=print) -> dict:
                 data = json.loads(e.read())
             except Exception:
                 data = None
+                last = f"HTTP {e.code}"
         except Exception as e:  # network reset, timeout
             last = e
             data = None
         if data is not None and data.get("error") and "limit" in str(data.get("reason", "")).lower():
             last = data.get("reason")
-            log(f"open-meteo refused (limit), try {k + 1}/{tries}")
-            time.sleep(4 + 2 * k)
+            log("limit", f"try {k + 1}/{tries}: {last}")
+            sleep(4 + 2 * k)
             continue
         if data is None:
-            time.sleep(3 + 2 * k)
+            log("network", f"try {k + 1}/{tries}: {last}")
+            sleep(3 + 2 * k)
             continue
         if data.get("error"):
             raise RuntimeError(f"open-meteo error: {data.get('reason')}")
@@ -91,6 +98,22 @@ def previous_runs_url(lat, lon, elevation, model, start, end, leads=range(1, 8),
     q = dict(latitude=lat, longitude=lon, elevation=elevation, hourly=",".join(hourly),
              models=model, start_date=start, end_date=end, timezone="GMT")
     return PREVIOUS_RUNS + "?" + urllib.parse.urlencode(q)
+
+
+def forecast_url(lat, lon, elevation, model, forecast_days=16,
+                 variables=("temperature_2m", "precipitation")) -> str:
+    """Latest run of one deterministic model (live forecast API)."""
+    q = dict(latitude=lat, longitude=lon, elevation=elevation, hourly=",".join(variables),
+             models=model, forecast_days=forecast_days, timezone="GMT")
+    return FORECAST + "?" + urllib.parse.urlencode(q)
+
+
+def ensemble_url(lat, lon, elevation, model, forecast_days=16,
+                 variables=("temperature_2m", "precipitation")) -> str:
+    """Latest run of one ensemble, every member (Ensemble API)."""
+    q = dict(latitude=lat, longitude=lon, elevation=elevation, hourly=",".join(variables),
+             models=model, forecast_days=forecast_days, timezone="GMT")
+    return ENSEMBLE + "?" + urllib.parse.urlencode(q)
 
 
 def single_run_url(lat, lon, elevation, model, run_iso, forecast_days=16,

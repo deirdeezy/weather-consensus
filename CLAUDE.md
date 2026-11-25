@@ -62,4 +62,6 @@ uv sync                                          # set up Python 3.12 and packag
 uv run pytest -q                                 # tests
 uv run python backend/scripts/backtest.py        # must show day 1 high about 1.00
 uv run python backend/scripts/backtest.py --align
+uv run python backend/scripts/refresh.py --dry-run  # which sources have a new run
+uv run python backend/scripts/refresh.py         # pull them into data/store/
 ```
