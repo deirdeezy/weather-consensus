@@ -3,13 +3,17 @@
 Per place, per lead day (1 to 14), per variable. Evidence labels: **backtest** = our own test on Kitimat history in this repo (one station; strong for Kitimat, unproven elsewhere until each place is tested).
 
 ## Steps
-1. **Pull** the newest run of every source (9 deterministic models; 3 ensembles from day 7).
+1. **Pull** the newest run of every source: 9 deterministic models and 3 ensembles (ECMWF ENS, NOAA GEFS, ECCC GEPS). Ensembles are stored and scored but get no weight yet (step 7).
 2. **Daily values**: hourly to daily on the ECCC climate day (UTC minus 6 h; a day needs 22 of 24 hours). `wxc/daily.py`
 3. **Habit fix**: subtract each source's average error over the last 30 days. Only days already verified at issue time count (window ends lead + 1 days before the target).
 4. **Weights**: inverse of each source's mean squared error over the last 60 days, after the habit fix. Normalise to 100%. Guardrails: floor 2%, cap 35%. A late source's share is split among the rest. `wxc/consensus.py`
 5. **Consensus** = weighted sum of habit-fixed forecasts.
 6. **Precipitation**: amount weighted by inverse 60-day mean absolute error (no habit fix). Chance of precipitation = share of sources forecasting 1 mm or more.
-7. **Days 8 to 14**: shift weight to ensembles and the 1991 to 2020 normal (normal about one third by day 13). Stage 1 work.
+7. **Days 8 to 14**: the deterministic models' archived 16-day runs (Open-Meteo Single Runs, 00 UTC, from 2 Apr 2026) plus the 1991 to 2020 normal (Kitimat Townsite daily records, +/- 7 calendar days) as one more source with its own habit fix and weight. Same habit fix, weights and guardrails as days 1 to 7, so the normal's share grows by itself as the models lose skill. Set by the horizon test (below):
+   - Highs and lows: the normal joins from day 8.
+   - Precipitation amount: the normal joins from day 10.
+   - Chance of precipitation from day 8: average of the sources' share and the normal wet-day share.
+   - Ensembles: Open-Meteo keeps no history of past ensemble runs, so they have no track record yet. They are pulled, stored and scored on every refresh from 25 Nov 2026 and join only after 60+ days of our own record and a backtest that shows they help. `wxc/horizon.py`
 8. **Certainty** = chance the day's high is within 2 deg C: Normal error with sigma = 1.25 x the consensus's own recent average miss at that lead, times (today's source disagreement / usual disagreement) ^ 0.25. `wxc/certainty.py`
 9. **Nightly**: score yesterday against the station, update habit fixes and weights. **Hourly**: rebuild when any source posts a new run.
 
@@ -49,6 +53,55 @@ Average miss in deg C (1 deg C = 1.8 deg F).
 - Disagreement term (exponent 0.25): small gain (Brier highs 0.1796 to 0.1792; lows 0.1427 to 0.1388). Exponent 0.5 hurt highs.
 - **Limitation**: within one lead day, Certainty barely beats a fixed rate for that lead. It tells you how far ahead you can trust the forecast, honestly, but does not yet pick out individual shaky days well. Candidate fix for later: ensemble spread. Test before shipping.
 
+## Days 8 to 14: horizon test (backtest)
+Reproduce with `uv run python backend/scripts/horizon.py`. Kitimat Forest Ave, scored 1 Jul to 23 Nov 2026 (127 to 146 days per lead; summer and fall only, one station). History: Open-Meteo Single Runs, 00 UTC, from 2 Apr 2026 (2,069 runs; 55 runs Open-Meteo does not have). Days 1 to 7 here come from Single Runs, not Previous Runs, so they differ a little from the main table above. Consensus = models only for days 1 to 7, models plus the normal from day 8 (what ships). Normal alone = the normal with its own 30-day habit fix. Average miss in deg C (1 deg C = 1.8 deg F).
+
+Highs (Certainty shown for days 8 to 14):
+
+| Day | Days scored | Consensus | Best single model (hindsight) | Normal alone | Certainty said | Came true |
+|---|---|---|---|---|---|---|
+| 1 | 146 | 1.02 | 1.19 (GEM) | 3.16 | | |
+| 2 | 146 | 1.16 | 1.47 (ECMWF IFS) | 3.20 | | |
+| 3 | 146 | 1.28 | 1.69 (UKMO) | 3.22 | | |
+| 4 | 146 | 1.56 | 1.98 (UKMO) | 3.23 | | |
+| 5 | 146 | 1.86 | 2.21 (ECMWF AIFS) | 3.24 | | |
+| 6 | 146 | 2.16 | 2.31 (ECMWF AIFS) | 3.25 | | |
+| 7 | 146 | 2.39 | 2.64 (ECMWF AIFS) | 3.27 | | |
+| 8 | 146 | 2.57 | 2.76 (ECMWF IFS) | 3.28 | 45% | 42% |
+| 9 | 146 | 2.94 | 3.26 (ECMWF AIFS) | 3.27 | 40% | 40% |
+| 10 | 143 | 3.05 | 3.39 (ECMWF AIFS) | 3.26 | 37% | 39% |
+| 11 | 139 | 3.16 | 3.50 (ECMWF AIFS) | 3.25 | 37% | 40% |
+| 12 | 135 | 3.33 | 3.82 (ECMWF AIFS) | 3.14 | 35% | 33% |
+| 13 | 131 | 3.40 | 3.79 (ECMWF AIFS) | 3.13 | 33% | 37% |
+| 14 | 127 | 3.59 | 4.04 (ECMWF AIFS) | 3.13 | 33% | 32% |
+
+Lows:
+
+| Day | Days scored | Consensus | Best single model (hindsight) | Normal alone |
+|---|---|---|---|---|
+| 1 | 146 | 0.82 | 0.96 (ECMWF IFS) | 1.98 |
+| 2 | 146 | 0.79 | 1.06 (ECMWF IFS) | 2.00 |
+| 3 | 146 | 0.87 | 1.09 (ECMWF IFS) | 2.01 |
+| 4 | 146 | 0.87 | 1.13 (ECMWF AIFS) | 2.02 |
+| 5 | 146 | 0.93 | 1.22 (ECMWF AIFS) | 2.03 |
+| 6 | 146 | 1.29 | 1.52 (ECMWF AIFS) | 2.03 |
+| 7 | 146 | 1.48 | 1.69 (ECMWF AIFS) | 2.03 |
+| 8 | 146 | 1.46 | 1.85 (ECMWF AIFS) | 2.03 |
+| 9 | 146 | 1.71 | 2.01 (GFS) | 2.03 |
+| 10 | 143 | 1.84 | 2.21 (ECMWF AIFS) | 2.05 |
+| 11 | 139 | 1.95 | 2.30 (ECMWF AIFS) | 2.08 |
+| 12 | 135 | 2.06 | 2.60 (ECMWF AIFS) | 2.08 |
+| 13 | 131 | 1.95 | 2.42 (ECMWF IFS) | 2.08 |
+| 14 | 127 | 2.11 | 2.65 (GFS) | 2.09 |
+
+- The normal as one more source, highs: costs 0.01 to 0.02 deg C at days 1 to 4, about even at days 5 and 8, helps from day 9 (day 14: 3.59 vs 4.04 models only). Lows: helps from day 6 (day 14: 2.11 vs 2.28). Its weight grows by itself: highs 17% at day 8, 35% (the cap) by day 14.
+- **Open issue, highs at days 12 to 14: the normal alone beats the Consensus** (3.14 vs 3.33, 3.13 vs 3.40, 3.13 vs 3.59 deg C). The 35% cap holds the normal's share at 35% when its track record says it should have more. Lows do not show this. Candidate fix to test: let the normal go past the cap at long leads. Not changed yet.
+- Equal weights beat the Consensus for highs at days 8 and 9 (2.39 vs 2.57, 2.84 vs 2.94). Same pattern as day 7 in the pilot. Idea still to test: blend toward equal weights as lead grows.
+- Precipitation amount (mm): the normal helps only from day 10 (day 14: 7.99 vs 9.06 models only), so it joins the amount from day 10.
+- Chance of precipitation (Brier, lower is better): the share of sources with 1 mm or more is worse than the normal wet-day share from day 9 (day 14: 0.418 vs 0.232). The average of the two is best or tied from day 8 (day 8: 0.186; day 14: 0.273), so it is used from day 8.
+- Certainty, highs, days 8 to 14: honest by lead; says 33 to 45% and comes true 32 to 43%. It falls with lead as it should. Over days 1 to 14 the top band (90%+) says 92% and comes true 83% (47 days): slightly overconfident there; watch in the shadow run.
+- Lows at days 10 to 14: the same Certainty formula would say about 63 to 68% while the low lands within 2 deg C 56 to 63% of the time. Certainty is defined on the high only, so this does not affect the app; noted for when lows get their own rating.
+
 ## Live use (Stage 1)
 - `backend/scripts/score.py` (nightly) pulls ECCC daily and 200 days of Open-Meteo Previous Runs (days 1 to 7), then writes each source's habit fix, error and weight per lead to `data/store/<place>/scores.json`.
 - The live numbers use the same code and windows as the backtest. Check (`tests/test_score.py`, and 42 issue dates on pilot history): the live blend equals the backtest Consensus to within 0.0000000002 deg C. Station data from the issue day on is hidden, so nothing unknown at issue time is used.
@@ -56,6 +109,7 @@ Average miss in deg C (1 deg C = 1.8 deg F).
 - First live run (issue date 24 Nov 2026), day 1 high weights: UKMO 17%, ICON 15%, ECMWF AIFS 15%, GEM 14%, ECMWF IFS 10%, Meteo-France 9%, GFS 9%, JMA 7%, CMA 4%.
 
 ## Not yet tested
-- Days 8 to 14 blend with ensembles and the normal (pilot tested ECMWF alone vs the normal: skill to about day 9, gone by day 14).
+- Ensembles at any lead (no history from Open-Meteo; our own record starts 25 Nov 2026; test after 60+ days).
+- Days 8 to 14 in winter and spring (the horizon test covers 1 Jul to 23 Nov 2026 only).
 - Places other than Kitimat.
 - Wind, gusts, snow vs rain, hourly values.

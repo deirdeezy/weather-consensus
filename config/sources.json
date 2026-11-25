@@ -39,7 +39,7 @@
     "cma_grapes_global": ["cma_grapes_global"],
     "meteofrance_seamless": ["meteofrance_arpege_world025"]
   },
-  "ensembles_from_day": 7,
+  "ensembles_status": "Pulled, stored and scored on every refresh from 25 Nov 2026. No weight until 60+ days of our own track record and a backtest shows they help (owner decision 24 Nov 2026). Open-Meteo keeps no history of past ensemble runs.",
   "ensembles": {
     "_note": "Ensemble API ids. GEFS uses the 0.5 deg run because the 0.25 deg run (ncep_gefs025) stops at 10 days. All three returned 14 full days at Kitimat (checked live 24 Nov 2026).",
     "ecmwf_ifs025_ensemble": {"label": "ECMWF ENS", "members": 51, "days": 15, "meta_path": "ecmwf_ifs025_ensemble"},

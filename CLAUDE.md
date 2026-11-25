@@ -16,6 +16,7 @@ iOS weather app (SwiftUI) that blends up to 12 forecast sources, weights each by
 - Metric and imperial for technical values in explanations.
 
 ## Rules
+- Never put personal details about the owner or anyone else (names, jobs, health, contact details, home paths, device names) in any file in this repo. The repo is public. Personal preferences belong only in the user-level ~/.claude/CLAUDE.md, which is never committed.
 - Never invent accuracy numbers. Every accuracy claim must come from a script in this repo and its output. Label sample data as sample, in docs and in the UI.
 - Test any algorithm change on history (`backend/scripts/backtest.py`) before shipping. Report before and after numbers.
 - Check current docs for every external API, limit, price and Apple rule before coding against it, and cite the source in the commit or doc. Do not rely on memory.
@@ -30,7 +31,7 @@ iOS weather app (SwiftUI) that blends up to 12 forecast sources, weights each by
 - Certainty = chance the day's high lands within 2 deg C of our number. Shown as a ring and 10 dots.
 - Tabs: Weather, Radar, Consensus, Places. Gear on Weather opens Settings.
 - Look: sky backgrounds, navy cards, Inter, coloured source bar (colour = source, length = weight). Living sky follows time of day and current weather; rough weather looks rich, never gloomy.
-- Algorithm: per place, per lead day, per variable. 30-day habit fix, weights from inverse 60-day squared error, guardrails 2% floor and 35% cap. Days 8 to 14 lean on ensembles and the 1991 to 2020 normal.
+- Algorithm: per place, per lead day, per variable. 30-day habit fix, weights from inverse 60-day squared error, guardrails 2% floor and 35% cap. Days 8 to 14: the deterministic models' archived 16-day runs plus the 1991 to 2020 normal as one more source, set by the horizon test (`backend/scripts/horizon.py`). Ensembles are pulled, stored and scored on every refresh but get no weight until 60+ days of our own track record and a backtest show they help.
 - Hosting: $0. Public GitHub repo, GitHub Actions jobs (hourly refresh at minute 17, nightly scoring), one JSON file per place on GitHub Pages.
 - Reliability: refresh only when a source posts a new run, retry on refusal, switch to a second route (an always-on home Mac or a free Google Cloud VM) after 6 hours without fresh data. App shows "Updated X hours ago" and lowers Certainty when data is stale.
 - Alerts: warnings and big changes by Apple push (CloudKit first, test in TestFlight early; fallback direct APNs). Morning summary is a local notification.

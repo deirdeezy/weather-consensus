@@ -8,6 +8,7 @@ __pycache__/
 data/cache/
 data/store/
 data/backtest_scores.csv
+data/horizon_scores.csv
 
 # macOS
 .DS_Store

@@ -56,13 +56,20 @@ def obs_payload(*_):
 
 
 def fake_get(url, tries=8, log=print):
+    if "single-runs" in url:
+        return {"hourly": {"time": [], "temperature_2m": [], "precipitation": []}}
     model = url.split("models=")[1].split("&")[0]
     return prev_payload(model)
 
 
+@pytest.fixture(autouse=True)
+def no_pacing(monkeypatch):
+    monkeypatch.setattr(sc.hz, "PACE_S", 0)
+
+
 def run(tmp_path, get=fake_get, fetch_obs=obs_payload):
     return sc.score(PLACE, CFG, tmp_path, issue=ISSUE, get=get, fetch_obs=fetch_obs,
-                    echo=lambda *a: None)
+                    fetch_normal=lambda cid: [], echo=lambda *a: None)
 
 
 def test_scores_find_habits_and_favour_the_steady_source(tmp_path):
@@ -80,6 +87,8 @@ def test_failed_download_uses_saved_copy_and_is_logged(tmp_path):
     run(tmp_path)
 
     def refuse(url, tries=8, log=print):
+        if "single-runs" in url:
+            return fake_get(url)
         raise RuntimeError("open-meteo error: limit")
 
     s = run(tmp_path, get=refuse)["scores"]
@@ -162,3 +171,28 @@ def test_pilot_history_live_equals_backtest():
     T = issue + dt.timedelta(days=2)
     st = cs.temperature_stats(F, o, 2, issue)
     assert cs.blend(F.loc[T], st["habit_fix"], st["mse"])[0] == pytest.approx(tc.consensus.loc[T], abs=1e-9)
+
+
+def test_days_8_to_14_use_long_history_and_the_normal():
+    rng = np.random.default_rng(7)
+    obs = sc.eccc.parse_daily(obs_payload())
+    dates = [d for d in DAYS if d < ISSUE]
+    long = {}
+    for m in CFG["deterministic_pool"]:
+        long[m] = {L: pd.DataFrame({v: pd.Series([TRUTH[d] - (4.6 if v == "tmin" else 0) + HABIT[m]
+                                                  + rng.normal(0, NOISE[m] * L / 4) for d in dates], index=dates)
+                                    for v in ("tmax", "tmin")}).assign(pcp=2.0)
+                   for L in sc.LONG_LEADS}
+    normal = pd.DataFrame({"tmax": 10.0, "tmin": 5.0, "pcp": 2.0, "wet_share": 0.5, "n": 30},
+                          index=range(1, 367))
+    s = sc.build_scores(obs, {m: prev_payload(m) for m in CFG["deterministic_pool"]},
+                        CFG["deterministic_pool"], ISSUE, long, normal)
+    assert sorted(map(int, s["leads"])) == list(range(1, 15))
+    assert "normal" not in s["leads"]["7"]["tmax"]["sources"]
+    w14 = s["leads"]["14"]["tmax"]["sources"]
+    assert w14["normal"]["weight"] > 0 and sum(v["weight"] for v in w14.values()) == pytest.approx(1, abs=1e-3)
+    assert s["normal"][(ISSUE + dt.timedelta(days=14)).isoformat()]["tmax"] == 10.0
+    assert "normal" in s["leads"]["8"]["tmax"]["sources"]
+    assert "normal" not in s["leads"]["9"]["pcp"]["sources"]
+    assert "normal" in s["leads"]["10"]["pcp"]["sources"]
+

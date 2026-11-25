@@ -14,7 +14,7 @@ Current stage: **Stage 1** (backend core, Kitimat only, on the main development 
 2. Confirm current Open-Meteo docs: live forecast endpoint, model ids, Ensemble API ids, and the model-update metadata endpoint. Record links in `openmeteo.py`. (Done 24 Nov 2026: ensemble ids fixed in `config/sources.json`, GEFS uses the 0.5 deg run for 14 days, metadata paths per source added.)
 3. `refresh.py`: check which sources have a new run; pull only those; save each raw pull under `data/store/` (date-stamped JSON); log every refusal. (Done 24 Nov 2026: first live run pulled all 12 sources, 0 refusals; a second run found nothing new and pulled nothing.)
 4. `score.py` (nightly): pull ECCC daily for Kitimat Forest Ave, match stored forecasts by lead, update habit fixes and weights. (Done 24 Nov 2026: habit fixes and weights come from the Open-Meteo Previous Runs history, the same data the backtest uses; our own stored pulls are scored by lead in `live_scores.csv` and can take over once they cover 60+ days, after a backtest.)
-5. Days 8 to 14: ensembles plus the 1991 to 2020 normal (Kitimat Townsite). Port the pilot's horizon test; Certainty must fall honestly with lead.
+5. Days 8 to 14: deterministic models' archived 16-day runs (Open-Meteo Single Runs, from 2 Apr 2026) plus the 1991 to 2020 normal (Kitimat Townsite) as one more source. Horizon test in `backend/scripts/horizon.py`; Certainty falls honestly with lead. Ensembles: pulled, stored and scored on every refresh, no weight yet (Open-Meteo keeps no history of past ensemble runs). (Done 24 Nov 2026; results in ALGORITHM.md.)
 6. `publish.py`: write `public/kitimat.json` (schema in `docs/JSON_SCHEMA.md`, written in this stage): days 1 to 14 with high, low, precip, chance of precip, Certainty, tier, source weights, updated time, data credits.
 7. Acceptance: tests pass; backtest unchanged; one live run produces a valid `kitimat.json`; refusals logged.
 
@@ -22,6 +22,8 @@ Current stage: **Stage 1** (backend core, Kitimat only, on the main development 
 - Create the public GitHub repo `weather-consensus`; push.
 - GitHub Actions: hourly refresh at minute 17, nightly scoring; JSON to GitHub Pages; 6-hour stale check with failover plan.
 - Shadow run 2 to 4 weeks: compare live Consensus to the station every day. Track refused runs; if more than about 1 in 20, move the main route to an always-on home Mac.
+- `data/store/` must persist between Actions runs (refresh state, saved Single Runs, our own ensemble record). Decide how before turning on Actions.
+- Ensembles: from about 24 Jan 2027 (60 days of our own record), backtest adding them to days 8 to 14. They join only if they help.
 
 ## Stage 3: SwiftUI app (Xcode on the main development Mac; read docs/XCODE.md first)
 - Decide minimum iOS version with the owner.

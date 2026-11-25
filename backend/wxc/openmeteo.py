@@ -30,7 +30,15 @@ Endpoints (checked 24 Nov 2026):
   request limits." Metadata paths differ from API model ids; the paths per
   source are in config/sources.json. Path list:
   https://github.com/open-meteo/open-meteo-website/blob/main/src/routes/en/docs/model-updates/+page.svelte
-- Previous Runs and Single Runs: confirmed in the pilot.
+- Previous Runs: PREVIOUS_RUNS. Docs https://open-meteo.com/en/docs/previous-runs-api
+  "_previous_day1 is the value that was predicted 24 hours before valid time
+  ... up to day 7." Most models archived from January 2024.
+- Single Runs: SINGLE_RUNS. Docs https://open-meteo.com/en/docs/single-runs-api
+  The full run for one initialisation time (&run=YYYY-MM-DDTHH:MM). "Most
+  models are archived from 2nd of April 2026." No ensembles (checked live).
+- Ensemble history: none. Past ensemble runs are not served by Single Runs or
+  the Ensemble API (checked live 24 Nov 2026); the Ensemble Mean API keeps a
+  best-estimate series, not forecasts by lead.
 """
 from __future__ import annotations
 
