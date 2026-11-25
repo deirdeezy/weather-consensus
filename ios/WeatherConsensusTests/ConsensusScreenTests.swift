@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import WeatherConsensus
 
@@ -21,6 +22,68 @@ struct ConsensusScreenTests {
         #expect(facts.normal?.id == "normal")
         #expect(ConsensusText.modelsHead(facts.models.count) == "9 FORECAST MODELS")
         #expect(ConsensusText.modelsHead(1) == "1 FORECAST MODEL")
+    }
+
+    @Test func chipsFollowTheCanvasOrderWithUnknownIdsLast() throws {
+        let facts = try facts()
+        #expect(facts.models.map { facts.names.name(for: $0.id) } ==
+                ["Env. Canada", "ECMWF", "ECMWF AI", "UK Met Office", "DWD ICON", "NOAA GFS", "Japan JMA", "China CMA", "Météo-France"])
+        // Unknown ids go last, in file order; the count is still the file's.
+        let forecast = try forecast { object in
+            var sources = object["sources"] as! [[String: Any]]
+            sources.insert(["id": "new_b", "label": "New B"], at: 0)
+            sources.insert(["id": "new_a", "label": "New A"], at: 3)
+            object["sources"] = sources
+        }
+        let models = ConsensusFacts(forecast).models
+        #expect(models.count == 11)
+        #expect(models.suffix(2).map(\.id) == ["new_b", "new_a"])
+        #expect(models.first?.id == "gem_seamless")
+    }
+
+    @Test func gatherTextMakesNoFrequencyPromise() {
+        #expect(ConsensusText.gatherText(placeName: "Kitimat", hasNormal: true) ==
+                "We check each source for new forecast runs and pull them as they come out. Further out, Kitimat's 1991 to 2020 normal joins in as one more source.")
+        #expect(ConsensusText.gatherText(placeName: "Kitimat", hasNormal: false) ==
+                "We check each source for new forecast runs and pull them as they come out.")
+    }
+
+    /// No app text promises how often we refresh or score (owner decision): checked in every key and
+    /// value of the String Catalog, which holds every localized string in the app.
+    @Test func noFrequencyPromiseAnywhereInTheApp() throws {
+        let url = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "WeatherConsensus/Localizable.xcstrings")
+        let text = try String(contentsOf: url, encoding: .utf8)
+        let catalog = try #require(try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        var texts = Array(strings.keys)
+        func collect(_ node: Any) {
+            if let dict = node as? [String: Any] {
+                if let value = dict["value"] as? String { texts.append(value) }
+                dict.values.forEach(collect)
+            } else if let array = node as? [Any] { array.forEach(collect) }
+        }
+        collect(strings)
+        let promise = try Regex(#"(?i)\bevery (hour|night|morning|evening|week|\d+ (hours?|minutes?))\b|\bhourly\b|\bnightly\b|\bdaily\b|update(s|d)? every day"#)
+        for text in texts {
+            #expect(text.firstMatch(of: promise) == nil, "\(text)")
+        }
+        #expect(texts.contains { $0.hasPrefix("We check each source for new forecast runs") })
+    }
+
+    @MainActor @Test(arguments: [SourceBar.large, SourceBar.small])
+    func sourceBarHeightIsFixedAtEveryTextSize(thickness: CGFloat) throws {
+        #expect(SourceBar.large == 22 && SourceBar.small == 14)
+        let forecast = try Fixture.forecast()
+        for size in [DynamicTypeSize.large, .accessibility5] {
+            let bar = SourceBar(weights: forecast.days[0].weights, names: SourceNames(forecast), thickness: thickness)
+                .frame(width: 300)
+                .environment(\.dynamicTypeSize, size)
+            let renderer = ImageRenderer(content: bar)
+            renderer.scale = 1
+            let image = try #require(renderer.uiImage)
+            #expect(image.size.height == thickness, "\(size): \(image.size.height)")
+        }
     }
 
     @Test func noNormalMeansNoNormalChipOrSentence() throws {

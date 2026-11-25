@@ -131,11 +131,16 @@ struct CertaintyDots: View {
 }
 
 /// The coloured source bar: one segment per source, colour = source, length = its weight for the high.
+/// Its height is fixed (it never grows with Dynamic Type; owner decision): canvas sizes `large` and `small`.
 struct SourceBar: View {
+    /// Canvas large bar (Consensus tab, day 1's consensus).
+    static let large: CGFloat = 22
+    /// Canvas small bar (hero diagram, day 1, 7 and 13 rows).
+    static let small: CGFloat = 14
+
     let weights: [PlaceForecast.Weight]
     let names: SourceNames
     var thickness: CGFloat = 8
-    @ScaledMetric(relativeTo: .caption) private var scale: CGFloat = 1
 
     var body: some View {
         let shown = weights.filter { $0.weight > 0 }
@@ -151,7 +156,7 @@ struct SourceBar: View {
                 }
             }
         }
-        .frame(height: thickness * scale)
+        .frame(height: thickness)
         .clipShape(Capsule())
         .background(Capsule().fill(Color.white.opacity(shown.isEmpty ? 0.12 : 0)))
         .accessibilityElement(children: .ignore)

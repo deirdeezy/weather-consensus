@@ -160,15 +160,6 @@
     "Every day blends several forecast sources, weighted by how well each has done here. The ring is the chance the high lands within 2 °C (3.6 °F) of our number." : {
 
     },
-    "Every hour we check each source for a new forecast run and pull it." : {
-      "comment" : "Step 1 text, when the file has no climate normal"
-    },
-    "Every hour we check each source for a new forecast run and pull it. Further out, %@'s 1991 to 2020 normal joins in as one more source." : {
-      "comment" : "Step 1 text. The value is the place name."
-    },
-    "Every night we score each source's recent forecasts against what really happened at the %@ weather station." : {
-      "comment" : "Step 2 text. The value is the truth station's name."
-    },
     "Every source has quirks in %@. We correct them before they count, using the last 30 days of results." : {
       "comment" : "Step 3 text. The value is the place name."
     },
@@ -209,7 +200,7 @@
 
     },
     "Latest scores" : {
-      "comment" : "Step 2 tile label: the date of the nightly scores"
+      "comment" : "Step 2 tile label: the date of the latest scores"
     },
     "Low" : {
       "comment" : "Certainty tier, under 50%"
@@ -311,7 +302,7 @@
     "Sources for the high: %@" : {
       "comment" : "VoiceOver label for the source bar; the list is source names with their share"
     },
-    "Sources that have been closer lately count for more. Weights update every day, so the consensus leans toward whoever is doing best right now. Shares shown are for the high." : {
+    "Sources that have been closer lately count for more. Weights update as new scores come in, so the consensus leans toward whoever is doing best right now. Shares shown are for the high." : {
       "comment" : "Step 4 text"
     },
     "Stale: no new forecast data in over %lld hours. Numbers may be out of date." : {
@@ -369,6 +360,12 @@
     "WEIGHT" : {
 
     },
+    "We check each source for new forecast runs and pull them as they come out." : {
+      "comment" : "Step 1 text, when the file has no climate normal"
+    },
+    "We check each source for new forecast runs and pull them as they come out. Further out, %@'s 1991 to 2020 normal joins in as one more source." : {
+      "comment" : "Step 1 text. The value is the place name."
+    },
     "We check their homework" : {
 
     },
@@ -377,6 +374,9 @@
     },
     "We gather" : {
 
+    },
+    "We score each source's recent forecasts against what really happened at the %@ weather station." : {
+      "comment" : "Step 2 text. The value is the truth station's name."
     },
     "We tell you how sure we are" : {
 

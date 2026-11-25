@@ -91,8 +91,17 @@ nonisolated struct ConsensusFacts: Sendable {
     /// Day 1, the first day in the file (v1 starts at tomorrow).
     var firstDay: PlaceForecast.Day? { forecast.days.first }
 
-    /// Forecast models in the file (every source with weight on any day), the normal left out.
-    var models: [PlaceForecast.Source] { forecast.sources.filter { $0.id != "normal" } }
+    /// Canvas order for the step 1 chips. Ids not listed follow in file order.
+    static let chipOrder = ["gem_seamless", "ecmwf_ifs", "ecmwf_aifs025_single", "ukmo_seamless", "icon_seamless",
+                            "gfs_seamless", "jma_seamless", "cma_grapes_global", "meteofrance_seamless"]
+
+    /// Forecast models in the file (every source with weight on any day), the normal left out,
+    /// in the canvas order (`chipOrder`), then any other id in file order. The count is the file's.
+    var models: [PlaceForecast.Source] {
+        let inFile = forecast.sources.filter { $0.id != "normal" }
+        let known = Self.chipOrder.compactMap { id in inFile.first { $0.id == id } }
+        return known + inFile.filter { !Self.chipOrder.contains($0.id) }
+    }
 
     /// The climate normal, when it has weight on any day.
     var normal: PlaceForecast.Source? { forecast.sources.first { $0.id == "normal" } }
@@ -162,9 +171,9 @@ nonisolated enum ConsensusText {
 
     static func gatherText(placeName: String, hasNormal: Bool) -> String {
         hasNormal
-            ? String(localized: "Every hour we check each source for a new forecast run and pull it. Further out, \(placeName)'s 1991 to 2020 normal joins in as one more source.",
+            ? String(localized: "We check each source for new forecast runs and pull them as they come out. Further out, \(placeName)'s 1991 to 2020 normal joins in as one more source.",
                      comment: "Step 1 text. The value is the place name.")
-            : String(localized: "Every hour we check each source for a new forecast run and pull it.",
+            : String(localized: "We check each source for new forecast runs and pull them as they come out.",
                      comment: "Step 1 text, when the file has no climate normal")
     }
 
@@ -183,12 +192,12 @@ nonisolated enum ConsensusText {
             return String(localized: "\(place.name) has no weather station of its own, so its weights are borrowed and its numbers are not checked here.",
                           comment: "Step 2 text for a place with no station. The value is the place name.")
         }
-        return String(localized: "Every night we score each source's recent forecasts against what really happened at the \(station.name) weather station.",
+        return String(localized: "We score each source's recent forecasts against what really happened at the \(station.name) weather station.",
                       comment: "Step 2 text. The value is the truth station's name.")
     }
 
     static let checkedAgainst = String(localized: "Checked against", comment: "Step 2 tile label: the truth station")
-    static let latestScores = String(localized: "Latest scores", comment: "Step 2 tile label: the date of the nightly scores")
+    static let latestScores = String(localized: "Latest scores", comment: "Step 2 tile label: the date of the latest scores")
 
     /// "Kitimat Forest Ave (ECCC)".
     static func stationValue(_ station: PlaceForecast.TruthStation) -> String {
@@ -200,7 +209,7 @@ nonisolated enum ConsensusText {
                comment: "Step 3 text. The value is the place name.")
     }
 
-    static let weightText = String(localized: "Sources that have been closer lately count for more. Weights update every day, so the consensus leans toward whoever is doing best right now. Shares shown are for the high.",
+    static let weightText = String(localized: "Sources that have been closer lately count for more. Weights update as new scores come in, so the consensus leans toward whoever is doing best right now. Shares shown are for the high.",
                                    comment: "Step 4 text")
 
     /// "WEDNESDAY'S CONSENSUS".
@@ -467,7 +476,7 @@ private struct HeroDiagram: View {
             .fixedSize()
             arrow(down: big)
             VStack(spacing: 6) {
-                SourceBar(weights: day.weights, names: names, thickness: 14)
+                SourceBar(weights: day.weights, names: names, thickness: SourceBar.small)
                 Text(verbatim: ConsensusText.consensusWord)
                     .font(.inter(11.5, .bold, relativeTo: .caption2))
                     .foregroundStyle(Color(Palette.textSecondary))
@@ -563,7 +572,7 @@ private struct WeightStep: View {
         StepCard(number: 4, title: ConsensusText.weightTitle, text: ConsensusText.weightText) {
             if let day = facts.firstDay {
                 CapsHead(text: ConsensusText.dayConsensusHead(day))
-                SourceBar(weights: day.weights, names: facts.names, thickness: 22)
+                SourceBar(weights: day.weights, names: facts.names, thickness: SourceBar.large)
                 legend(day)
             }
             if !facts.shiftDays.isEmpty {
@@ -606,7 +615,7 @@ private struct WeightStep: View {
     private func shiftRow(_ day: PlaceForecast.Day) -> some View {
         let label = Text(verbatim: ConsensusText.leadDay(day))
             .font(.inter(12.5, .bold, relativeTo: .caption))
-        let bar = SourceBar(weights: day.weights, names: facts.names, thickness: 14)
+        let bar = SourceBar(weights: day.weights, names: facts.names, thickness: SourceBar.small)
         Group {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 4) { label; bar }
@@ -746,6 +755,16 @@ struct CertaintyByDayChart: View {
 #Preview("Consensus, largest text") {
     ConsensusScreen(model: .previewFixture())
         .environment(\.nowOverride, PreviewClock.afternoon)
-        .dynamicTypeSize(.accessibility3)
+        .dynamicTypeSize(.accessibility5)
+}
+
+#Preview("Step 4 source bars, largest text") {
+    // Bars stay 22 and 14 pt high; the text around them scales.
+    let forecast = ForecastScreenModel.previewFixture().forecast!
+    ScrollView {
+        WeightStep(facts: ConsensusFacts(forecast)).padding(16)
+    }
+    .background(SkyView(style: SkyStyle(time: .day, weather: nil)))
+    .dynamicTypeSize(.accessibility5)
 }
 #endif
