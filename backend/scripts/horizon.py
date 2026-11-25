@@ -2,6 +2,7 @@
 
 Run from the repo root (after score.py or the backfill has saved Single Runs):
     uv run python backend/scripts/horizon.py
+    uv run python backend/scripts/horizon.py --cap-test   # the 35% cap and the normal, days 8 to 14
 
 Reads:
 - data/store/kitimat/single/<model>/<date>.json  (Open-Meteo Single Runs, 00 UTC,
@@ -140,5 +141,65 @@ def run():
     print("saved", out.relative_to(ROOT))
 
 
+def cap_test():
+    """Days 8 to 14: does letting the normal (or everything) go past the 35% cap help?"""
+    obs, normal, models, dates = load()
+    N = hz.normal_for(normal, dates)
+    variants = {"current (35% cap)": dict(cap_exempt=()),
+                "normal uncapped": dict(cap_exempt=("normal",)),
+                "no cap": dict(cap_exempt=tuple(POOL) + ("normal",))}
+    halves = {"Jul-Sep": (EVAL_FROM, pd.Timestamp("2026-09-30").date()),
+              "Oct-Nov": (pd.Timestamp("2026-10-01").date(), obs.index.max())}
+    rows, calib = [], []
+    for var in ("tmax", "tmin"):
+        o = obs[var]
+        for lead in range(hz.NORMAL_FROM_LEAD, 15):
+            Fn = frame(models, lead, var, dates).assign(normal=N[var])
+            res = {k: cs.temperature_consensus(Fn, o, lead, **kw) for k, kw in variants.items()}
+            ok = pd.concat([r.consensus for r in res.values()], axis=1).notna().all(axis=1) & o.notna()
+            ok &= pd.Series(ok.index >= EVAL_FROM, index=ok.index)
+            for k, r in res.items():
+                err = (r.consensus - o).abs()[ok]
+                row = {"var": var, "lead": lead, "variant": k, "n": int(ok.sum()), "all": err.mean(),
+                       "normal_weight": r["w_normal"][ok].mean()}
+                for h, (a, b) in halves.items():
+                    m = (err.index >= a) & (err.index <= b)
+                    row[h] = err[m].mean()
+                if var == "tmax":
+                    mae = cs.consensus_trailing_mae(r.consensus, o, lead)
+                    pr = cert.certainty(mae, r.spread, cs.spread_reference(r.spread, lead))[ok]
+                    hit = (err < cert.TOLERANCE_C).astype(float)
+                    row["said"], row["came_true"] = pr.mean(), hit.mean()
+                    calib.append(pd.DataFrame({"variant": k, "p": pr, "hit": hit}))
+                rows.append(row)
+    R = pd.DataFrame(rows)
+    pd.set_option("display.width", 220)
+    print(f"Days 8 to 14, average miss in deg C, scored {EVAL_FROM} to {obs.dropna(how='all').index.max()}, "
+          "Kitimat Forest Ave. Same days for every variant.\n")
+    for var in ("tmax", "tmin"):
+        r = R[R["var"] == var]
+        piv = r.pivot(index="lead", columns="variant", values="all")[list(variants)]
+        w = r.pivot(index="lead", columns="variant", values="normal_weight")[list(variants)]
+        print(f"== {var}: average miss\n", piv.round(3).to_string(), "\n")
+        print(f"== {var}: normal's average weight\n", w.round(3).to_string(), "\n")
+        for h in halves:
+            m = r.groupby("variant")[h].mean()[list(variants)]
+            print(f"   {var} mean over days 8 to 14, {h}: " + ", ".join(f"{k} {v:.3f}" for k, v in m.items()))
+        m = r.groupby("variant")["all"].mean()[list(variants)]
+        print(f"   {var} mean over days 8 to 14, all:     " + ", ".join(f"{k} {v:.3f}" for k, v in m.items()), "\n")
+    A = pd.concat(calib)
+    r = R[R["var"] == "tmax"]
+    print("== Certainty, highs: said / came true by lead\n",
+          r.pivot(index="lead", columns="variant", values="said")[list(variants)].round(3).add_suffix(" said")
+          .join(r.pivot(index="lead", columns="variant", values="came_true")[list(variants)].round(3)
+                .add_suffix(" true")).to_string(), "\n")
+    for k in variants:
+        a = A[A.variant == k]
+        print(f"   Brier, highs days 8 to 14, {k}: {((a.p - a.hit) ** 2).mean():.4f}")
+
+
 if __name__ == "__main__":
-    run()
+    if "--cap-test" in sys.argv:
+        cap_test()
+    else:
+        run()

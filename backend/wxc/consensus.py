@@ -27,11 +27,13 @@ def _trailing(x: pd.DataFrame | pd.Series, lead: int, days: int, min_periods: in
 
 
 def apply_guardrails(w: pd.DataFrame, floor: float = FLOOR, cap: float = CAP,
-                     iters: int = 50) -> pd.DataFrame:
-    """Clip each row's weights to [floor, cap] among available sources and renormalise."""
+                     iters: int = 50, cap_exempt=()) -> pd.DataFrame:
+    """Clip each row's weights to [floor, cap] among available sources and renormalise.
+    Columns in cap_exempt keep the floor but have no cap."""
     w = w.div(w.sum(axis=1), axis=0)
+    caps = pd.Series([1.0 if c in cap_exempt else cap for c in w.columns], index=w.columns)
     for _ in range(iters):
-        clipped = w.clip(lower=floor, upper=cap)
+        clipped = w.clip(lower=floor, upper=caps, axis=1)
         clipped = clipped.div(clipped.sum(axis=1), axis=0)
         if np.nanmax(np.abs((clipped - w).to_numpy(dtype=float)), initial=0.0) < 1e-9:
             return clipped
@@ -40,7 +42,7 @@ def apply_guardrails(w: pd.DataFrame, floor: float = FLOOR, cap: float = CAP,
 
 
 def temperature_consensus(F: pd.DataFrame, obs: pd.Series, lead: int,
-                          guardrails: bool = True) -> pd.DataFrame:
+                          guardrails: bool = True, cap_exempt=()) -> pd.DataFrame:
     """Bias-corrected, inverse-MSE weighted consensus for tmax or tmin.
 
     Returns columns: consensus, spread (weighted std of corrected sources),
@@ -53,7 +55,7 @@ def temperature_consensus(F: pd.DataFrame, obs: pd.Series, lead: int,
     w = (1.0 / mse).where(Fbc.notna())
     w = w.div(w.sum(axis=1), axis=0)
     if guardrails:
-        w = apply_guardrails(w)
+        w = apply_guardrails(w, cap_exempt=cap_exempt)
     has = w.notna().any(axis=1)
     cons = (Fbc * w).sum(axis=1).where(has)
     spread = np.sqrt((w * Fbc.sub(cons, axis=0).pow(2)).sum(axis=1)).where(has)
