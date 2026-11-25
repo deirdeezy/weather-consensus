@@ -8,7 +8,7 @@ enum SettingsPage: String, Hashable {
 /// Settings, opened by the gear on the Weather tab, from the design canvas artboard `Settings.dc.html`.
 /// Only what works today: the place, units, living sky, links into Consensus and About.
 /// Left out (nothing behind them yet): "Add a place", "Use my location", alerts (warnings, big changes,
-/// morning summary, quiet hours), wind, snow and pressure units, clock, hourly rows, gentle motion,
+/// morning summary, quiet hours), snow units, knots and hPa, clock, hourly rows, gentle motion,
 /// send feedback. Settings are stored on this phone only (`AppSettings`).
 struct SettingsScreen: View {
     let model: ForecastScreenModel
@@ -83,7 +83,17 @@ struct SettingsScreen: View {
                                    (.inches, "in", String(localized: "inches"))],
                          selection: $settings.rainUnit)
             RowDivider()
-            Text(verbatim: SettingsText.certaintyNote)
+            UnitSegments(title: String(localized: "Wind"),
+                         options: [(.kilometresPerHour, "km/h", String(localized: "kilometres per hour")),
+                                   (.milesPerHour, "mph", String(localized: "miles per hour"))],
+                         selection: $settings.windUnit)
+            RowDivider()
+            UnitSegments(title: String(localized: "Pressure"),
+                         options: [(.kilopascals, "kPa", String(localized: "kilopascals")),
+                                   (.inchesOfMercury, "inHg", String(localized: "inches of mercury"))],
+                         selection: $settings.pressureUnit)
+            RowDivider()
+            Text(verbatim: SettingsText.certaintyNote(settings.temperatureUnit))
                 .font(.inter(13, .regular, relativeTo: .footnote))
                 .foregroundStyle(Color(Palette.textSecondary))
                 .fixedSize(horizontal: false, vertical: true)
@@ -148,8 +158,11 @@ nonisolated enum SettingsText {
     static let placesStay = String(localized: "Your places stay on your phone")
     static let livingSkyDetail = String(localized: "On: the background follows the time of day at the place. Off: a calm, fixed sky.",
                                         comment: "Settings, under the Living sky switch")
-    static let certaintyNote = String(localized: "Certainty always means the chance the high lands within 2\u{00A0}°C (3.6\u{00A0}°F) of our number.",
-                                      comment: "Settings, under the units")
+    /// "Certainty means the chance the high lands within 2 °C of our number." In the chosen unit only.
+    static func certaintyNote(_ unit: TemperatureUnit) -> String {
+        String(localized: "Certainty means the chance the high lands within \(CertaintyText.band(unit)) of our number.",
+               comment: "Settings, under the units. Value: the Certainty band in the chosen unit.")
+    }
 
     /// The place in the file; "Kitimat" (the only place) before the first file arrives.
     static func placeName(_ forecast: PlaceForecast?) -> String {

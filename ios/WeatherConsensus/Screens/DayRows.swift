@@ -281,7 +281,7 @@ struct DayPanel: View {
                 fact(String(localized: "High"), ValueText.temperature(day.high, in: units.temperature))
                 fact(String(localized: "Low"), ValueText.temperature(day.low, in: units.temperature))
                 fact(String(localized: "Precipitation"), ValueText.precipitation(day.precipMM, in: units.rain))
-                fact(String(localized: "Chance of 1\u{00A0}mm+"), ValueText.percent(day.precipChance))
+                fact(ValueText.chanceLabel(units.rain), ValueText.percent(day.precipChance))
             }
         }
     }

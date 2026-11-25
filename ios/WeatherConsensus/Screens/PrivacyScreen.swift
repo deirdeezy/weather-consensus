@@ -125,7 +125,9 @@ struct AcknowledgementsScreen: View {
 
 nonisolated enum AcknowledgementText {
     /// Sources checked 25 Nov 2026: https://open-meteo.com/en/licence (CC BY 4.0; credit, link, say if changed),
-    /// https://eccc-msc.github.io/open-data/licence/readme_en/ (attribution sentence, section 3),
+    /// https://eccc-msc.github.io/open-data/licence/readme_en/ (attribution sentence, section 3; the licence covers
+    /// all information from ECCC's data servers, real-time observations included; section 5: no use that suggests
+    /// official status or endorsement),
     /// https://openfontlicense.org/ (OFL 1.1).
     static let ecccLicenceURL = URL(string: "https://eccc-msc.github.io/open-data/licence/readme_en/")!
 
@@ -137,7 +139,7 @@ nonisolated enum AcknowledgementText {
 
     static let interLicence = String(localized: "The Inter typeface is used under the SIL Open Font License, Version 1.1. The licence ships inside the app.")
     static let openMeteo = String(localized: "Weather data by Open-Meteo.com, under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). We change the data: each source's forecasts are corrected for local habits and blended into one consensus.")
-    static let eccc = String(localized: "Contains information licenced under the Data Server End-use Licence of Environment and Climate Change Canada. Station observations and the 1991 to 2020 climate normals come from ECCC.")
+    static let eccc = String(localized: "Contains information licenced under the Data Server End-use Licence of Environment and Climate Change Canada. Station observations (the real-time latest observation and the records we check forecasts against) and the 1991 to 2020 climate normals come from ECCC. Weather Consensus is not an official ECCC product, and ECCC does not endorse it.")
 
     /// The OFL text bundled with the font (`Fonts/Inter-OFL.txt`).
     static var licenceText: String? {

@@ -58,6 +58,9 @@ nonisolated enum Palette {
     static let textBody = RGB(0xDCE7F6)      // body copy on navy
     static let link = RGB(0x8CC8FF)          // links, chance of precipitation
     static let rain = RGB(0x8CC8FF)
+    /// Now card (canvas top card): feels-like chip and the high arrow, wind chip and arrow.
+    static let warm = RGB(0xFFB37A)
+    static let windTint = RGB(0xBFE3FF)
     /// Consensus tab hero panel: canvas rgba(9,26,54,0.5) over the navy card.
     static let heroPanel = RGB(0x091A36).over(card, alpha: 0.5)
 

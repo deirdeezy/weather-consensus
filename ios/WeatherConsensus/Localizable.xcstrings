@@ -32,6 +32,17 @@
     "%@ normal (1991 to 2020)" : {
       "comment" : "Source name: the place's 1991 to 2020 climate normal. The value is the place name."
     },
+    "%@ since %@" : {
+      "comment" : "Now card: precipitation so far today. Values: amount, start of the climate day",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ since %2$@"
+          }
+        }
+      }
+    },
     "%@ weather station, %@" : {
       "comment" : "About, Checked against. Values: the station's network (ECCC), the station name.",
       "localizations" : {
@@ -125,7 +136,7 @@
     "2 degrees Celsius" : {
       "comment" : "VoiceOver: the Certainty band"
     },
-    "2 degrees Celsius (3.6 degrees Fahrenheit)" : {
+    "3.6 degrees Fahrenheit" : {
       "comment" : "VoiceOver: the Certainty band, deg F chosen"
     },
     "50% to 74%" : {
@@ -157,8 +168,14 @@
     "Acknowledgements" : {
 
     },
+    "Air temperature" : {
+      "comment" : "Feels like: no wind chill or humidex, so the air temperature"
+    },
     "CC BY 4.0 licence" : {
 
+    },
+    "Calm" : {
+      "comment" : "Now card: wind rounds to 0"
     },
     "Celsius" : {
 
@@ -177,17 +194,20 @@
         }
       }
     },
-    "Certainty always means the chance the high lands within 2 °C (3.6 °F) of our number." : {
-      "comment" : "Settings, under the units"
-    },
     "Certainty by day: %@" : {
       "comment" : "VoiceOver label for the 14-day Certainty chart; the list is dates with their Certainty"
+    },
+    "Certainty means the chance the high lands within %@ of our number." : {
+      "comment" : "Settings, under the units. Value: the Certainty band in the chosen unit."
     },
     "Certainty not available" : {
 
     },
+    "Chance of 0.04 in or more" : {
+      "comment" : "Opened day row: chance of precipitation at the backend threshold, in inches"
+    },
     "Chance of 1 mm+" : {
-
+      "comment" : "Opened day row: chance of precipitation at the backend threshold, in millimetres"
     },
     "Changes" : {
 
@@ -213,7 +233,7 @@
     "Consensus only: no station here, so these numbers are not checked locally." : {
 
     },
-    "Contains information licenced under the Data Server End-use Licence of Environment and Climate Change Canada. Station observations and the 1991 to 2020 climate normals come from ECCC." : {
+    "Contains information licenced under the Data Server End-use Licence of Environment and Climate Change Canada. Station observations (the real-time latest observation and the records we check forecasts against) and the 1991 to 2020 climate normals come from ECCC. Weather Consensus is not an official ECCC product, and ECCC does not endorse it." : {
 
     },
     "Could not load the forecast." : {
@@ -240,6 +260,9 @@
     "Delivered by" : {
 
     },
+    "Dew point %@" : {
+      "comment" : "Now card, under humidity"
+    },
     "Done" : {
 
     },
@@ -264,8 +287,8 @@
     "Environment and Climate Change Canada" : {
 
     },
-    "Every day blends several forecast sources, weighted by how well each has done here. The ring is the chance the high lands within 2 °C (3.6 °F) of our number." : {
-
+    "Every day blends several forecast sources, weighted by how well each has done here. The ring is the chance the high lands within %@ of our number." : {
+      "comment" : "Weather tab, Certainty card. Value: the Certainty band in the chosen unit."
     },
     "Every source has quirks in %@. We correct them before they count, using the last 30 days of results." : {
       "comment" : "Step 3 text. The value is the place name."
@@ -279,8 +302,17 @@
     "Fahrenheit" : {
 
     },
+    "Falling" : {
+      "comment" : "Pressure tendency over 3 hours"
+    },
+    "Feels like" : {
+
+    },
     "Forecasts" : {
 
+    },
+    "From %@" : {
+      "comment" : "Wind direction, e.g. From NNE"
     },
     "Further out, the consensus shifts" : {
 
@@ -296,6 +328,9 @@
     },
     "High" : {
       "comment" : "Certainty tier, 75% and up"
+    },
+    "High %@" : {
+      "comment" : "Now card: observed high so far"
     },
     "How %lld sources and the normal reached consensus" : {
 
@@ -318,6 +353,12 @@
     "How sure we are, day by day" : {
 
     },
+    "Humidex" : {
+
+    },
+    "Humidity" : {
+
+    },
     "If this policy changes, the new version comes with an app update." : {
 
     },
@@ -335,6 +376,15 @@
     },
     "Kitimat" : {
       "comment" : "Place name"
+    },
+    "LATEST OBSERVATION" : {
+      "comment" : "Now card heading, in capitals as on the canvas"
+    },
+    "Last hour" : {
+
+    },
+    "Last observation %lld h ago" : {
+      "comment" : "Now card, observation over 3 hours old. Value: whole hours"
     },
     "Last updated 25 November 2026" : {
       "comment" : "Privacy policy date"
@@ -356,6 +406,9 @@
     },
     "Low" : {
       "comment" : "Certainty tier, under 50%"
+    },
+    "Low %@" : {
+      "comment" : "Now card: observed low so far"
     },
     "Made in Kitimat, BC" : {
       "comment" : "About footer"
@@ -416,6 +469,45 @@
     },
     "Not every model runs two weeks ahead, and each one's track record changes with the range, so the blend changes from day to day." : {
       "comment" : "Step 4 text under the day 1, 7 and 13 bars"
+    },
+    "Observed at %@" : {
+      "comment" : "Now card label for an old observation. Value: station name"
+    },
+    "Observed at %@, %lld h ago" : {
+      "comment" : "Now card label. Values: station name, whole hours since the observation (1 or 2)",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Observed at %1$@, %2$lld h ago"
+          }
+        }
+      }
+    },
+    "Observed at %@, %lld min ago" : {
+      "comment" : "Now card label. Values: station name, minutes since the observation",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Observed at %1$@, %2$lld min ago"
+          }
+        }
+      }
+    },
+    "Observed at %@, just now" : {
+      "comment" : "Now card label. Value: station name"
+    },
+    "Observed so far since %@: high %@, low %@" : {
+      "comment" : "VoiceOver: observed high and low so far",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Observed so far since %1$@: high %2$@, low %3$@"
+          }
+        }
+      }
     },
     "Odds that %@'s high lands within %@ of %@." : {
       "comment" : "Opened day row, beside the big Certainty ring. Values: a weekday name, the Certainty band (2 °C), the forecast high.",
@@ -486,6 +578,12 @@
     "Precipitation %@" : {
       "comment" : "VoiceOver, day row: precipitation amount"
     },
+    "Precipitation in the last hour: %@" : {
+      "comment" : "VoiceOver: precipitation in the last hour"
+    },
+    "Pressure" : {
+
+    },
     "Privacy policy" : {
 
     },
@@ -504,6 +602,9 @@
     "Read the licence" : {
 
     },
+    "Rising" : {
+      "comment" : "Pressure tendency over 3 hours"
+    },
     "SIL Open Font License" : {
 
     },
@@ -515,6 +616,9 @@
     },
     "Shows the Certainty breakdown and sources for this day" : {
 
+    },
+    "So far since %@" : {
+      "comment" : "Now card: start of the climate day on the phone's clock"
     },
     "Sources" : {
 
@@ -531,6 +635,9 @@
     "Station-checked" : {
       "comment" : "A place whose forecasts are scored against a weather station"
     },
+    "Steady" : {
+      "comment" : "Pressure tendency over 3 hours"
+    },
     "Step %lld: %@" : {
       "comment" : "VoiceOver heading for a numbered step on the Consensus tab",
       "localizations" : {
@@ -542,10 +649,39 @@
         }
       }
     },
+    "Sun down all day" : {
+
+    },
+    "Sun up all day" : {
+
+    },
+    "Sunrise %@" : {
+
+    },
+    "Sunrise/Sunset" : {
+      "comment" : "Now card tile title, as on the canvas"
+    },
+    "Sunset %@" : {
+
+    },
     "Tap a day for details" : {
 
     },
     "Temperature" : {
+
+    },
+    "Temperature %@%@" : {
+      "comment" : "VoiceOver: observed temperature, e.g. Temperature 4°C",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Temperature %1$@%2$@"
+          }
+        }
+      }
+    },
+    "Temperature not available" : {
 
     },
     "The Inter typeface is used under the SIL Open Font License, Version 1.1. The licence ships inside the app." : {
@@ -557,8 +693,8 @@
     "The latest forecast file is saved on the phone too, so the forecast still shows when you are offline. Each new file replaces the old one. Deleting the app deletes all of it." : {
 
     },
-    "The ring on every day is the odds its high lands within 2 °C (3.6 °F) of our number. Think of it as days out of 10." : {
-      "comment" : "Step 5 text"
+    "The ring on every day is the odds its high lands within %@ of our number. Think of it as days out of 10." : {
+      "comment" : "Step 5 text. Value: the Certainty band in the chosen unit."
     },
     "This forecast needs an app update." : {
 
@@ -661,6 +797,12 @@
     "Why it exists" : {
 
     },
+    "Wind" : {
+
+    },
+    "Wind chill" : {
+
+    },
     "Your places stay on your phone" : {
 
     },
@@ -670,7 +812,34 @@
     "consensus" : {
       "comment" : "Small label under the blended bar in the hero diagram"
     },
+    "east" : {
+
+    },
+    "east-northeast" : {
+
+    },
+    "east-southeast" : {
+
+    },
+    "from the %@" : {
+      "comment" : "VoiceOver: wind direction"
+    },
+    "gusts %@" : {
+      "comment" : "VoiceOver: wind gust with unit"
+    },
+    "gusts %lld" : {
+      "comment" : "Now card: wind gust, number only, as on the canvas"
+    },
     "inches" : {
+
+    },
+    "inches of mercury" : {
+
+    },
+    "kilometres per hour" : {
+
+    },
+    "kilopascals" : {
 
     },
     "means about %lld of every 10 days like this land within %@" : {
@@ -683,10 +852,55 @@
         }
       }
     },
+    "miles per hour" : {
+
+    },
     "millimetres" : {
 
     },
+    "north" : {
+
+    },
+    "north-northeast" : {
+
+    },
+    "north-northwest" : {
+
+    },
+    "northeast" : {
+
+    },
+    "northwest" : {
+
+    },
+    "south" : {
+
+    },
+    "south-southeast" : {
+
+    },
+    "south-southwest" : {
+
+    },
+    "southeast" : {
+
+    },
+    "southwest" : {
+
+    },
+    "the station" : {
+      "comment" : "Now card: station with no name in the file"
+    },
     "under 50%" : {
+
+    },
+    "west" : {
+
+    },
+    "west-northwest" : {
+
+    },
+    "west-southwest" : {
 
     }
   },

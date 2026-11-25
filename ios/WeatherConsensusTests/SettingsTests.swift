@@ -58,19 +58,42 @@ struct UnitConversionTests {
         #expect(ValueText.rowPrecipitation(nil, in: .inches) == ValueText.missing)
     }
 
-    @Test func certaintyBandStaysInCelsius() throws {
+    /// Step 5b: Certainty text names the chosen unit only ("within 2 °C" or "within 3.6 °F"), never both.
+    @Test func certaintyBandInTheChosenUnitOnly() throws {
         let day = try #require(try Fixture.forecast().days.first)
         #expect(CertaintyText.band(.celsius) == "2\(nbsp)°C")
-        #expect(CertaintyText.band(.fahrenheit) == "2\(nbsp)°C (3.6\(nbsp)°F)")
+        #expect(CertaintyText.band(.fahrenheit) == "3.6\(nbsp)°F")
         #expect(CertaintyText.oddsSentence(day, unit: .fahrenheit) ==
-                "Odds that Wednesday's high lands within 2\(nbsp)°C (3.6\(nbsp)°F) of 43°.")
+                "Odds that Wednesday's high lands within 3.6\(nbsp)°F of 43°.")
+        #expect(CertaintyText.oddsSentence(day, unit: .celsius) ==
+                "Odds that Wednesday's high lands within 2\(nbsp)°C of 6°.")
         #expect(CertaintyText.dotsSentence(day, unit: .fahrenheit) ==
-                "Out of 10 days like this, about 9 land within 2\(nbsp)°C (3.6\(nbsp)°F) of our forecast high.")
+                "Out of 10 days like this, about 9 land within 3.6\(nbsp)°F of our forecast high.")
         #expect(ConsensusText.exampleSentence(day, unit: .fahrenheit) ==
-                "About 9 of 10 days like this land within 2\(nbsp)°C (3.6\(nbsp)°F).")
-        #expect(CertaintyText.dotsLabel(day, unit: .fahrenheit).contains("2\(nbsp)degrees Celsius (3.6\(nbsp)degrees Fahrenheit)"))
-        // The explainer keeps both units either way.
-        #expect(SettingsText.certaintyNote.contains("2\(nbsp)°C (3.6\(nbsp)°F)"))
+                "About 9 of 10 days like this land within 3.6\(nbsp)°F.")
+        #expect(CertaintyText.dotsLabel(day, unit: .fahrenheit).contains("within 3.6\(nbsp)degrees Fahrenheit of our high"))
+        #expect(CertaintyText.dotsLabel(day, unit: .celsius).contains("within 2\(nbsp)degrees Celsius of our high"))
+        #expect(SettingsText.certaintyNote(.celsius) == "Certainty means the chance the high lands within 2\(nbsp)°C of our number.")
+        #expect(SettingsText.certaintyNote(.fahrenheit) == "Certainty means the chance the high lands within 3.6\(nbsp)°F of our number.")
+        #expect(CertaintyText.explainer(.fahrenheit).hasSuffix("within 3.6\(nbsp)°F of our number."))
+        #expect(ConsensusText.sureText(.fahrenheit).contains("within 3.6\(nbsp)°F of our number"))
+        for unit in TemperatureUnit.allCases {
+            for text in [CertaintyText.band(unit), CertaintyText.spokenBand(unit), SettingsText.certaintyNote(unit),
+                         CertaintyText.explainer(unit), ConsensusText.sureText(unit),
+                         CertaintyText.oddsSentence(day, unit: unit), CertaintyText.dotsSentence(day, unit: unit),
+                         CertaintyText.dotsLabel(day, unit: unit)] {
+                let both = (text.contains("°C") || text.contains("Celsius")) && (text.contains("°F") || text.contains("Fahrenheit"))
+                #expect(!both, "\(text)")
+            }
+        }
+    }
+
+    /// Step 5b: the chance-of-precipitation label names the threshold in the chosen unit.
+    @Test func chanceLabelInTheChosenUnit() {
+        #expect(ValueText.chanceLabel(.millimetres) == "Chance of 1\(nbsp)mm+")
+        #expect(ValueText.chanceLabel(.inches) == "Chance of 0.04\(nbsp)in or more")
+        // 1 mm is 0.0394 in: two decimals, like every inch amount.
+        #expect(ValueText.precipitation(1, in: .inches) == "0.04\(nbsp)in")
     }
 
     @Test func dayRowReadsTheChosenUnits() throws {
@@ -113,6 +136,8 @@ struct SettingsStoreTests {
         let settings = AppSettings(defaults: defaults)
         #expect(settings.temperatureUnit == .celsius)
         #expect(settings.rainUnit == .millimetres)
+        #expect(settings.windUnit == .kilometresPerHour)
+        #expect(settings.pressureUnit == .kilopascals)
         #expect(settings.livingSky)
         #expect(settings.units == .metric)
     }
@@ -123,12 +148,16 @@ struct SettingsStoreTests {
         let settings = AppSettings(defaults: defaults)
         settings.temperatureUnit = .fahrenheit
         settings.rainUnit = .inches
+        settings.windUnit = .milesPerHour
+        settings.pressureUnit = .inchesOfMercury
         settings.livingSky = false
         let reopened = AppSettings(defaults: defaults)
         #expect(reopened.temperatureUnit == .fahrenheit)
         #expect(reopened.rainUnit == .inches)
+        #expect(reopened.windUnit == .milesPerHour)
+        #expect(reopened.pressureUnit == .inchesOfMercury)
         #expect(!reopened.livingSky)
-        #expect(reopened.units == UnitChoice(temperature: .fahrenheit, rain: .inches))
+        #expect(reopened.units == UnitChoice(temperature: .fahrenheit, rain: .inches, wind: .milesPerHour, pressure: .inchesOfMercury))
     }
 
     @Test func unreadableValuesFallBackToDefaults() {
@@ -136,19 +165,25 @@ struct SettingsStoreTests {
         defer { defaults.removePersistentDomain(forName: name) }
         defaults.set("kelvin", forKey: AppSettings.Key.temperatureUnit)
         defaults.set(42, forKey: AppSettings.Key.rainUnit)
+        defaults.set("knots", forKey: AppSettings.Key.windUnit)
+        defaults.set("hectopascals", forKey: AppSettings.Key.pressureUnit)
         let settings = AppSettings(defaults: defaults)
+        #expect(settings.windUnit == .kilometresPerHour)
+        #expect(settings.pressureUnit == .kilopascals)
         #expect(settings.temperatureUnit == .celsius)
         #expect(settings.rainUnit == .millimetres)
         #expect(settings.livingSky)
     }
 
-    /// Stored on the phone only: the store writes its three keys to the given defaults and nothing else.
+    /// Stored on the phone only: the store writes its five keys to the given defaults and nothing else.
     @Test func writesOnlyItsOwnKeys() {
         let (defaults, name) = freshDefaults()
         defer { defaults.removePersistentDomain(forName: name) }
         let settings = AppSettings(defaults: defaults)
         settings.temperatureUnit = .fahrenheit
         settings.rainUnit = .inches
+        settings.windUnit = .milesPerHour
+        settings.pressureUnit = .inchesOfMercury
         settings.livingSky = false
         let written = Set(defaults.persistentDomain(forName: name)?.keys.map { $0 } ?? [])
         #expect(written == Set(AppSettings.Key.all))
@@ -269,6 +304,9 @@ struct NewScreenTests {
         #expect(AcknowledgementText.interCopyright.hasPrefix("Copyright"))
         #expect(AcknowledgementText.openMeteo.contains("CC BY 4.0"))
         #expect(AcknowledgementText.eccc.hasPrefix("Contains information licenced under the Data Server End-use Licence of Environment and Climate Change Canada."))
+        // Real-time observations are covered, and nothing suggests official status (licence section 5).
+        #expect(AcknowledgementText.eccc.contains("real-time latest observation"))
+        #expect(AcknowledgementText.eccc.contains("not an official ECCC product, and ECCC does not endorse it"))
     }
 
     /// No contact details anywhere in the app's text: no email address, phone number or personal web page.

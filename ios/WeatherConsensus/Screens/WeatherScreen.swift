@@ -6,8 +6,9 @@ extension EnvironmentValues {
 }
 
 /// The Weather tab, built from the design canvas (v8): living sky, navy cards, Inter, and the 14 days as
-/// canvas compact rows that open into a Certainty breakdown (`DayRows.swift`). Only values the published file has are shown
-/// (no current conditions, wind, hourly or condition icons yet: schema v1 has none).
+/// canvas compact rows that open into a Certainty breakdown (`DayRows.swift`). Only values the published file has are shown.
+/// At the top, the Now card (`NowCard.swift`) when the file has a station observation; no forecast for today,
+/// hourly or condition icons yet.
 struct WeatherScreen: View {
     let model: ForecastScreenModel
     var openSettings: () -> Void = {}
@@ -61,6 +62,9 @@ struct WeatherScreen: View {
             VStack(spacing: 14) {
                 header(style: style)
                 if let forecast = model.forecast {
+                    if let observation = forecast.now {
+                        NowCard(observation: observation, place: forecast.place, now: now)
+                    }
                     StatusCard(forecast: forecast, now: now, problemNote: model.problemNote)
                     CertaintyExplainer(forecast: forecast, openConsensus: openConsensus)
                 }
@@ -269,7 +273,7 @@ struct CertaintyExplainer: View {
                     .buttonStyle(.plain)
                     .accessibilityHint(Text("Opens the Consensus tab"))
                 }
-                Text("Every day blends several forecast sources, weighted by how well each has done here. The ring is the chance the high lands within 2\u{00A0}°C (3.6\u{00A0}°F) of our number.")
+                Text(verbatim: CertaintyText.explainer(units.temperature))
                     .font(.inter(13, .regular, relativeTo: .footnote))
                     .foregroundStyle(Color(Palette.textBody))
                     .fixedSize(horizontal: false, vertical: true)
@@ -363,9 +367,17 @@ struct CreditsCard: View {
 extension ForecastScreenModel {
     /// Real published data saved on 25 Nov 2026 (`PreviewContent/preview-fixture-...json`, a development
     /// asset left out of archives), never the network. `offline: true` makes every refresh fail as offline.
-    static func previewFixture(offline: Bool = false) -> ForecastScreenModel {
+    /// `withNow: true` adds the real Kitimat Forest Ave observation of 25 Nov 2026 21:00 UTC
+    /// (`PreviewContent/preview-now-kitimat-2026-11-25T2100Z.json`, as the backend published it) as the `now` block.
+    static func previewFixture(offline: Bool = false, withNow: Bool = false) -> ForecastScreenModel {
         let url = Bundle.main.url(forResource: "preview-fixture-kitimat-2026-11-25T0407Z", withExtension: "json")!
-        let data = try! Data(contentsOf: url)
+        var data = try! Data(contentsOf: url)
+        if withNow {
+            let nowURL = Bundle.main.url(forResource: "preview-now-kitimat-2026-11-25T2100Z", withExtension: "json")!
+            var object = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+            object["now"] = try! JSONSerialization.jsonObject(with: Data(contentsOf: nowURL))
+            data = try! JSONSerialization.data(withJSONObject: object)
+        }
         let forecast = try! ForecastDecoder.decode(data)
         let store = ForecastStore(directory: URL.temporaryDirectory.appending(path: "PreviewForecasts"))
         let loader = ForecastLoader(store: store) { _ in
@@ -382,12 +394,27 @@ enum PreviewClock {
     static let fresh = ISO8601DateFormatter().date(from: "2026-11-25T05:00:00Z")!     // night, about 1 hour old
     static let afternoon = ISO8601DateFormatter().date(from: "2026-11-25T21:00:00Z")! // day, stale (17 hours)
     static let stale = ISO8601DateFormatter().date(from: "2026-11-25T16:30:00Z")!     // dawn, stale (12 hours)
+    /// 40 minutes after the preview observation (21:00 UTC).
+    static let observedFresh = ISO8601DateFormatter().date(from: "2026-11-25T21:40:00Z")!
+    /// 5 hours after it: dimmed.
+    static let observedOld = ISO8601DateFormatter().date(from: "2026-11-26T02:05:00Z")!
 }
 
 #Preview("Weather, light") {
     WeatherScreen(model: .previewFixture())
         .environment(\.nowOverride, PreviewClock.fresh)
         .preferredColorScheme(.light)
+}
+
+#Preview("Weather with the Now card") {
+    WeatherScreen(model: .previewFixture(withNow: true))
+        .environment(\.nowOverride, PreviewClock.observedFresh)
+}
+
+#Preview("Now card, 5 hours old, imperial") {
+    WeatherScreen(model: .previewFixture(withNow: true))
+        .environment(\.nowOverride, PreviewClock.observedOld)
+        .environment(\.unitChoice, UnitChoice(temperature: .fahrenheit, rain: .inches, wind: .milesPerHour, pressure: .inchesOfMercury))
 }
 
 #Preview("Weather, dark") {

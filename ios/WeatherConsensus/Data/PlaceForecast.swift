@@ -23,6 +23,8 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
     let sources: [Source]
     let days: [Day]
     let credits: [Credit]
+    /// Latest station observation. Only places with an approved station have it (docs/JSON_SCHEMA.md).
+    let now: StationObservation?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -34,7 +36,46 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         case stale
         case staleAfterHours = "stale_after_hours"
         case weightsAsOf = "weights_as_of"
-        case units, sources, days, credits
+        case units, sources, days, credits, now
+    }
+
+    init(schemaVersion: Int, place: Place, issuedAt: Date, issueDate: LocalDate, newestRunAt: Date?,
+         freshDataAt: Date?, stale: Bool, staleAfterHours: Double, weightsAsOf: LocalDate?, units: Units,
+         sources: [Source], days: [Day], credits: [Credit], now: StationObservation? = nil) {
+        self.schemaVersion = schemaVersion
+        self.place = place
+        self.issuedAt = issuedAt
+        self.issueDate = issueDate
+        self.newestRunAt = newestRunAt
+        self.freshDataAt = freshDataAt
+        self.stale = stale
+        self.staleAfterHours = staleAfterHours
+        self.weightsAsOf = weightsAsOf
+        self.units = units
+        self.sources = sources
+        self.days = days
+        self.credits = credits
+        self.now = now
+    }
+
+    /// As synthesized, except `now`: optional, and a block that cannot be read is dropped (logged nowhere,
+    /// shown as no observation) so it can never cost the forecast.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
+        place = try c.decode(Place.self, forKey: .place)
+        issuedAt = try c.decode(Date.self, forKey: .issuedAt)
+        issueDate = try c.decode(LocalDate.self, forKey: .issueDate)
+        newestRunAt = try c.decodeIfPresent(Date.self, forKey: .newestRunAt)
+        freshDataAt = try c.decodeIfPresent(Date.self, forKey: .freshDataAt)
+        stale = try c.decode(Bool.self, forKey: .stale)
+        staleAfterHours = try c.decode(Double.self, forKey: .staleAfterHours)
+        weightsAsOf = try c.decodeIfPresent(LocalDate.self, forKey: .weightsAsOf)
+        units = try c.decode(Units.self, forKey: .units)
+        sources = try c.decode([Source].self, forKey: .sources)
+        days = try c.decode([Day].self, forKey: .days)
+        credits = try c.decode([Credit].self, forKey: .credits)
+        now = c.lenient(StationObservation.self, .now)
     }
 
     nonisolated struct Place: Codable, Equatable, Sendable {

@@ -76,6 +76,73 @@ nonisolated enum ValueText {
         (Double(hundredths(mm)) / 100).formatted(.number.precision(.fractionLength(2)))
     }
 
+    // MARK: Wind and pressure (Now card)
+
+    /// km/h per mph: 1 mile is exactly 1.609344 km.
+    static let kmPerMile = 1.609344
+    /// kPa per inHg: 1 inch of mercury (at 0 °C) is 3.386389 kPa (NIST SP 811, appendix B.8).
+    static let kPaPerInHg = 3.386389
+
+    /// Wind in the chosen unit, whole numbers, half away from zero.
+    static func windWhole(_ kmh: Double, in unit: WindUnit) -> Int {
+        Int((unit == .kilometresPerHour ? kmh : kmh / kmPerMile).rounded())
+    }
+
+    /// "30 km/h" or "19 mph".
+    static func wind(_ kmh: Double?, in unit: WindUnit) -> String {
+        guard let kmh else { return missing }
+        return windNumber(windWhole(kmh, in: unit), in: unit)
+    }
+
+    /// A whole wind number with its unit.
+    static func windNumber(_ whole: Int, in unit: WindUnit) -> String {
+        whole.formatted() + "\u{00A0}" + (unit == .kilometresPerHour ? "km/h" : "mph")
+    }
+
+    /// "100.2 kPa" (one decimal, as ECCC shows it) or "29.60 inHg" (two decimals).
+    static func pressure(_ kPa: Double?, in unit: PressureUnit) -> String {
+        guard let kPa else { return missing }
+        switch unit {
+        case .kilopascals:
+            return kPa.formatted(.number.precision(.fractionLength(1))) + "\u{00A0}kPa"
+        case .inchesOfMercury:
+            return (kPa / kPaPerInHg).formatted(.number.precision(.fractionLength(2))) + "\u{00A0}inHg"
+        }
+    }
+
+    private static let compassPoints = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+                                        "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+
+    /// 16-point compass for a direction in degrees true ("NNE").
+    static func compass(_ degrees: Double) -> String {
+        compassPoints[compassIndex(degrees)]
+    }
+
+    private static func compassIndex(_ degrees: Double) -> Int {
+        let d = degrees.truncatingRemainder(dividingBy: 360)
+        return Int(((d < 0 ? d + 360 : d) / 22.5).rounded()) % 16
+    }
+
+    /// "north-northeast", for VoiceOver.
+    static func spokenCompass(_ degrees: Double) -> String {
+        let names = [String(localized: "north"), String(localized: "north-northeast"), String(localized: "northeast"),
+                     String(localized: "east-northeast"), String(localized: "east"), String(localized: "east-southeast"),
+                     String(localized: "southeast"), String(localized: "south-southeast"), String(localized: "south"),
+                     String(localized: "south-southwest"), String(localized: "southwest"), String(localized: "west-southwest"),
+                     String(localized: "west"), String(localized: "west-northwest"), String(localized: "northwest"),
+                     String(localized: "north-northwest")]
+        return names[compassIndex(degrees)]
+    }
+
+    /// Label for the chance of precipitation. The backend's threshold is 1 mm; in inches it reads
+    /// "Chance of 0.04 in or more" (1 mm = 0.039 in, to two decimals as every inch amount).
+    static func chanceLabel(_ unit: RainUnit) -> String {
+        switch unit {
+        case .millimetres: String(localized: "Chance of 1\u{00A0}mm+", comment: "Opened day row: chance of precipitation at the backend threshold, in millimetres")
+        case .inches: String(localized: "Chance of 0.04\u{00A0}in or more", comment: "Opened day row: chance of precipitation at the backend threshold, in inches")
+        }
+    }
+
     static func percent(_ value: Int?) -> String {
         guard let value else { return missing }
         return value.formatted() + "%"
@@ -141,17 +208,23 @@ nonisolated enum ValueText {
 
 /// Certainty in words and dots, shared by the ring, the dots and VoiceOver.
 nonisolated enum CertaintyText {
-    /// The Certainty band in words. It is defined in deg C (locked: within 2 deg C of our high), so it stays
-    /// "2 °C"; with deg F chosen it reads "2 °C (3.6 °F)", as the explainer always does.
+    /// The Certainty band in the chosen unit only (owner decision, step 5b): "2 °C", or "3.6 °F"
+    /// (the same band: a 2 deg C difference is 3.6 deg F; Certainty is still worked out in deg C).
     static func band(_ unit: TemperatureUnit) -> String {
-        unit == .celsius ? "2\u{00A0}°C" : "2\u{00A0}°C (3.6\u{00A0}°F)"
+        unit == .celsius ? "2\u{00A0}°C" : "3.6\u{00A0}°F"
+    }
+
+    /// Weather tab Certainty card: "… The ring is the chance the high lands within 2 °C of our number."
+    static func explainer(_ unit: TemperatureUnit) -> String {
+        String(localized: "Every day blends several forecast sources, weighted by how well each has done here. The ring is the chance the high lands within \(band(unit)) of our number.",
+               comment: "Weather tab, Certainty card. Value: the Certainty band in the chosen unit.")
     }
 
     /// VoiceOver form of `band`.
     static func spokenBand(_ unit: TemperatureUnit) -> String {
         unit == .celsius
             ? String(localized: "2\u{00A0}degrees Celsius", comment: "VoiceOver: the Certainty band")
-            : String(localized: "2\u{00A0}degrees Celsius (3.6\u{00A0}degrees Fahrenheit)", comment: "VoiceOver: the Certainty band, deg F chosen")
+            : String(localized: "3.6\u{00A0}degrees Fahrenheit", comment: "VoiceOver: the Certainty band, deg F chosen")
     }
 
     /// Filled dots out of 10: Certainty rounded to the nearest 10% (canvas rule).

@@ -12,12 +12,24 @@ nonisolated enum RainUnit: String, CaseIterable, Sendable {
     case millimetres, inches
 }
 
+/// Unit for wind and gusts. The published file is always km/h.
+nonisolated enum WindUnit: String, CaseIterable, Sendable {
+    case kilometresPerHour, milesPerHour
+}
+
+/// Unit for air pressure. The published file is always kPa.
+nonisolated enum PressureUnit: String, CaseIterable, Sendable {
+    case kilopascals, inchesOfMercury
+}
+
 /// The units the screens draw with, read from `AppSettings` and passed down the view tree.
 nonisolated struct UnitChoice: Equatable, Sendable {
     var temperature: TemperatureUnit = .celsius
     var rain: RainUnit = .millimetres
+    var wind: WindUnit = .kilometresPerHour
+    var pressure: PressureUnit = .kilopascals
 
-    /// The defaults: deg C and mm.
+    /// The defaults: deg C, mm, km/h and kPa.
     static let metric = UnitChoice()
 }
 
@@ -29,14 +41,16 @@ extension EnvironmentValues {
 }
 
 /// The app's settings. Stored on this phone only, in the app's own `UserDefaults`: never synced,
-/// never sent anywhere (no iCloud key-value store, no network). Defaults: deg C, mm, living sky on.
+/// never sent anywhere (no iCloud key-value store, no network). Defaults: deg C, mm, km/h, kPa, living sky on.
 @Observable
 final class AppSettings {
     enum Key {
         static let temperatureUnit = "temperatureUnit"
         static let rainUnit = "rainUnit"
+        static let windUnit = "windUnit"
+        static let pressureUnit = "pressureUnit"
         static let livingSky = "livingSky"
-        static let all = [temperatureUnit, rainUnit, livingSky]
+        static let all = [temperatureUnit, rainUnit, windUnit, pressureUnit, livingSky]
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -49,6 +63,14 @@ final class AppSettings {
         didSet { defaults.set(rainUnit.rawValue, forKey: Key.rainUnit) }
     }
 
+    var windUnit: WindUnit {
+        didSet { defaults.set(windUnit.rawValue, forKey: Key.windUnit) }
+    }
+
+    var pressureUnit: PressureUnit {
+        didSet { defaults.set(pressureUnit.rawValue, forKey: Key.pressureUnit) }
+    }
+
     var livingSky: Bool {
         didSet { defaults.set(livingSky, forKey: Key.livingSky) }
     }
@@ -58,11 +80,13 @@ final class AppSettings {
         self.defaults = defaults
         temperatureUnit = defaults.string(forKey: Key.temperatureUnit).flatMap(TemperatureUnit.init(rawValue:)) ?? .celsius
         rainUnit = defaults.string(forKey: Key.rainUnit).flatMap(RainUnit.init(rawValue:)) ?? .millimetres
+        windUnit = defaults.string(forKey: Key.windUnit).flatMap(WindUnit.init(rawValue:)) ?? .kilometresPerHour
+        pressureUnit = defaults.string(forKey: Key.pressureUnit).flatMap(PressureUnit.init(rawValue:)) ?? .kilopascals
         livingSky = defaults.object(forKey: Key.livingSky) == nil ? true : defaults.bool(forKey: Key.livingSky)
     }
 
     var units: UnitChoice {
-        UnitChoice(temperature: temperatureUnit, rain: rainUnit)
+        UnitChoice(temperature: temperatureUnit, rain: rainUnit, wind: windUnit, pressure: pressureUnit)
     }
 }
 

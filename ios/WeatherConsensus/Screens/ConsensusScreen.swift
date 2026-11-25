@@ -245,8 +245,10 @@ nonisolated enum ConsensusText {
         return intro + " " + tail
     }
 
-    static let sureText = String(localized: "The ring on every day is the odds its high lands within 2\u{00A0}°C (3.6\u{00A0}°F) of our number. Think of it as days out of 10.",
-                                 comment: "Step 5 text")
+    static func sureText(_ unit: TemperatureUnit = .celsius) -> String {
+        String(localized: "The ring on every day is the odds its high lands within \(CertaintyText.band(unit)) of our number. Think of it as days out of 10.",
+               comment: "Step 5 text. Value: the Certainty band in the chosen unit.")
+    }
 
     /// "Wed 25 Nov · High".
     static func exampleTitle(_ day: PlaceForecast.Day) -> String {
@@ -639,7 +641,7 @@ private struct SureStep: View {
     @Environment(\.unitChoice) private var units
 
     var body: some View {
-        StepCard(number: 5, title: ConsensusText.sureTitle, text: ConsensusText.sureText) {
+        StepCard(number: 5, title: ConsensusText.sureTitle, text: ConsensusText.sureText(units.temperature)) {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(facts.examples) { day in
                     example(day)

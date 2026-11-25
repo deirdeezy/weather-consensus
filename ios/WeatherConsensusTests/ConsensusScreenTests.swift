@@ -233,7 +233,7 @@ struct ConsensusScreenTests {
 
     @Test func everyConsensusStringKeepsUnitsJoined() throws {
         let facts = try facts()
-        var strings = [ConsensusText.sureText, ConsensusText.shiftText(facts: facts), ConsensusText.chartLabel(facts.forecast.days)]
+        var strings = [ConsensusText.sureText(), ConsensusText.sureText(.fahrenheit), ConsensusText.shiftText(facts: facts), ConsensusText.chartLabel(facts.forecast.days)]
         for day in facts.forecast.days {
             strings += [ConsensusText.exampleSentence(day), ConsensusText.exampleLabel(day), ConsensusText.diagramLabel(day),
                         ConsensusText.shiftRowLabel(day, names: facts.names)]
