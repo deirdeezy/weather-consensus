@@ -1,0 +1,71 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "2026-11-25-2124-CVKC-AUTO-minute-swob.xml",
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -128.604077,
+     54.056434,
+     106.354
+    ]
+   },
+   "properties": {
+    "date_tm-value": "2026-11-25T21:24:00.000Z",
+    "clim_id-value": "1064324",
+    "data_pvdr-value": "MSC",
+    "_is-minutely_obs-value": true,
+    "air_temp": 3.5,
+    "dwpt_temp": 3.5,
+    "rel_hum": 100,
+    "avg_wnd_spd_10m_pst2mts": 1.3,
+    "avg_wnd_dir_10m_pst2mts": 324,
+    "avg_wnd_spd_10m_pst10mts": 1.2,
+    "avg_wnd_dir_10m_pst10mts": 28,
+    "max_wnd_spd_10m_pst10mts": 3.5,
+    "pcpn_amt_pst1hr": 1.1,
+    "max_air_temp_pst1hr": 3.7,
+    "min_air_temp_pst1hr": 3.5,
+    "air_temp-qa": 100,
+    "rel_hum-qa": 100
+   }
+  }
+ ],
+ "numberMatched": 922,
+ "numberReturned": 1,
+ "links": [
+  {
+   "type": "application/geo+json",
+   "rel": "self",
+   "title": "This document as GeoJSON",
+   "href": "https://api.weather.gc.ca/collections/swob-realtime/items?f=json&clim_id-value=1064324&_is-minutely_obs-value=true&datetime=2026-11-25T06%3A00%3A00Z%2F2026-11-25T21%3A50%3A00Z&sortby=-date_tm-value&limit=1&properties=date_tm-value,clim_id-value,data_pvdr-value,_is-minutely_obs-value,air_temp,dwpt_temp,rel_hum,avg_wnd_spd_10m_pst2mts,avg_wnd_dir_10m_pst2mts,avg_wnd_spd_10m_pst10mts,avg_wnd_dir_10m_pst10mts,max_wnd_spd_10m_pst10mts,mslp,pres_tend_char_pst3hrs,pres_tend_amt_pst3hrs,pcpn_amt_pst1hr,max_air_temp_pst1hr,min_air_temp_pst1hr,air_temp-qa,dwpt_temp-qa,rel_hum-qa,avg_wnd_spd_10m_pst2mts-qa,avg_wnd_dir_10m_pst2mts-qa,avg_wnd_spd_10m_pst10mts-qa,avg_wnd_dir_10m_pst10mts-qa,max_wnd_spd_10m_pst10mts-qa,mslp-qa,pres_tend_char_pst3hrs-qa,pres_tend_amt_pst3hrs-qa,pcpn_amt_pst1hr-qa,max_air_temp_pst1hr-qa,min_air_temp_pst1hr-qa"
+  },
+  {
+   "rel": "alternate",
+   "type": "application/ld+json",
+   "title": "This document as RDF (JSON-LD)",
+   "href": "https://api.weather.gc.ca/collections/swob-realtime/items?f=jsonld&clim_id-value=1064324&_is-minutely_obs-value=true&datetime=2026-11-25T06%3A00%3A00Z%2F2026-11-25T21%3A50%3A00Z&sortby=-date_tm-value&limit=1&properties=date_tm-value,clim_id-value,data_pvdr-value,_is-minutely_obs-value,air_temp,dwpt_temp,rel_hum,avg_wnd_spd_10m_pst2mts,avg_wnd_dir_10m_pst2mts,avg_wnd_spd_10m_pst10mts,avg_wnd_dir_10m_pst10mts,max_wnd_spd_10m_pst10mts,mslp,pres_tend_char_pst3hrs,pres_tend_amt_pst3hrs,pcpn_amt_pst1hr,max_air_temp_pst1hr,min_air_temp_pst1hr,air_temp-qa,dwpt_temp-qa,rel_hum-qa,avg_wnd_spd_10m_pst2mts-qa,avg_wnd_dir_10m_pst2mts-qa,avg_wnd_spd_10m_pst10mts-qa,avg_wnd_dir_10m_pst10mts-qa,max_wnd_spd_10m_pst10mts-qa,mslp-qa,pres_tend_char_pst3hrs-qa,pres_tend_amt_pst3hrs-qa,pcpn_amt_pst1hr-qa,max_air_temp_pst1hr-qa,min_air_temp_pst1hr-qa"
+  },
+  {
+   "type": "text/html",
+   "rel": "alternate",
+   "title": "This document as HTML",
+   "href": "https://api.weather.gc.ca/collections/swob-realtime/items?f=html&clim_id-value=1064324&_is-minutely_obs-value=true&datetime=2026-11-25T06%3A00%3A00Z%2F2026-11-25T21%3A50%3A00Z&sortby=-date_tm-value&limit=1&properties=date_tm-value,clim_id-value,data_pvdr-value,_is-minutely_obs-value,air_temp,dwpt_temp,rel_hum,avg_wnd_spd_10m_pst2mts,avg_wnd_dir_10m_pst2mts,avg_wnd_spd_10m_pst10mts,avg_wnd_dir_10m_pst10mts,max_wnd_spd_10m_pst10mts,mslp,pres_tend_char_pst3hrs,pres_tend_amt_pst3hrs,pcpn_amt_pst1hr,max_air_temp_pst1hr,min_air_temp_pst1hr,air_temp-qa,dwpt_temp-qa,rel_hum-qa,avg_wnd_spd_10m_pst2mts-qa,avg_wnd_dir_10m_pst2mts-qa,avg_wnd_spd_10m_pst10mts-qa,avg_wnd_dir_10m_pst10mts-qa,max_wnd_spd_10m_pst10mts-qa,mslp-qa,pres_tend_char_pst3hrs-qa,pres_tend_amt_pst3hrs-qa,pcpn_amt_pst1hr-qa,max_air_temp_pst1hr-qa,min_air_temp_pst1hr-qa"
+  },
+  {
+   "type": "application/geo+json",
+   "rel": "next",
+   "title": "Items (next)",
+   "href": "https://api.weather.gc.ca/collections/swob-realtime/items?offset=1&clim_id-value=1064324&_is-minutely_obs-value=true&datetime=2026-11-25T06%3A00%3A00Z%2F2026-11-25T21%3A50%3A00Z&sortby=-date_tm-value&limit=1&properties=date_tm-value,clim_id-value,data_pvdr-value,_is-minutely_obs-value,air_temp,dwpt_temp,rel_hum,avg_wnd_spd_10m_pst2mts,avg_wnd_dir_10m_pst2mts,avg_wnd_spd_10m_pst10mts,avg_wnd_dir_10m_pst10mts,max_wnd_spd_10m_pst10mts,mslp,pres_tend_char_pst3hrs,pres_tend_amt_pst3hrs,pcpn_amt_pst1hr,max_air_temp_pst1hr,min_air_temp_pst1hr,air_temp-qa,dwpt_temp-qa,rel_hum-qa,avg_wnd_spd_10m_pst2mts-qa,avg_wnd_dir_10m_pst2mts-qa,avg_wnd_spd_10m_pst10mts-qa,avg_wnd_dir_10m_pst10mts-qa,max_wnd_spd_10m_pst10mts-qa,mslp-qa,pres_tend_char_pst3hrs-qa,pres_tend_amt_pst3hrs-qa,pcpn_amt_pst1hr-qa,max_air_temp_pst1hr-qa,min_air_temp_pst1hr-qa"
+  },
+  {
+   "type": "application/json",
+   "title": "SWOB - Real-Time Data",
+   "rel": "collection",
+   "href": "https://api.weather.gc.ca/collections/swob-realtime"
+  }
+ ],
+ "timeStamp": "2026-11-26T01:07:46.187282Z"
+}

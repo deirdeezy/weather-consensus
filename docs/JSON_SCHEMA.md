@@ -58,37 +58,39 @@ Notes:
 - Precipitation weights are not published (version 1 has one source bar per day, for the high).
 
 ## `now` (optional)
-The newest hourly observation at the place's approved station, and what the station has seen so far in the current climate day. Written by `backend/wxc/obs.py` from ECCC's real-time SWOB (MSC GeoMet `swob-realtime`). Observations, not a forecast: the name `today` is kept for a later lead 0 forecast, and `days` still starts at day 1.
+The latest observation at the place's approved station (the newest minute or hourly record, value by value), and what the station has seen so far in the current climate day. Written by `backend/wxc/obs.py` from ECCC's real-time SWOB (MSC GeoMet `swob-realtime`). Observations, not a forecast: the name `today` is kept for a later lead 0 forecast, and `days` still starts at day 1.
 
 Station rule: a place has `now` only if `config/places.json` approves a station for it (`obs_station`), the station is run by ECCC itself (no NAV CANADA or partner stations), and it is within 10 km of the place. Today only Kitimat (Kitimat Forest Ave, 2.0 km).
 
 | Field | Type | Meaning |
 |---|---|---|
-| `observed_at` | UTC time | Time of the observation (the end of the hour it covers). Show its age; the app dims values after 3 h and hides them after 12 h. |
+| `observed_at` | UTC time | Time of the newest record any current value came from: `values_from.minute_at` if any value came from the minute record, otherwise `values_from.hourly_at`. Show its age; the app dims values after 3 h and hides them after 12 h. |
+| `values_from` | object, optional | Which SWOB record the current values came from (added 26 Nov 2026; absent in older blocks, which are all hourly). `minute_at`: time of the minute record used, or null if none was used. `hourly_at`: time of the newest hourly record (pressure, tendency, `precip_1h_mm` and the so-far values always come from hourly records). `temp`, `dew_point`, `humidity`, `wind`, `gust`: `"minute"` or `"hourly"` each. Readers must accept other values. |
 | `fetched_at` | UTC time | When the backend last got a good answer from ECCC. After a refusal the previous block is published again, unchanged. |
 | `source` | string | `ECCC SWOB real-time (MSC GeoMet swob-realtime)`. |
 | `station` | object | `{"network", "id", "name", "distance_km"}`: ECCC climate id, display name, distance from the place's point (km, 1 decimal; 1 km = 0.62 mi). |
-| `temp`, `dew_point` | number or null | deg C, 1 decimal (SWOB `air_temp`, `dwpt_temp`). |
+| `temp`, `dew_point` | number or null | deg C, 1 decimal (SWOB `air_temp`, `dwpt_temp`), from the record named in `values_from`. |
 | `humidity` | integer or null | Relative humidity, percent (`rel_hum`). |
 | `wind_kmh`, `wind_dir_deg` | number, integer or null | 2-minute mean wind at 10 m (1 km/h = 0.62 mph) and the direction it blows from, degrees true, 0 to 359 (`avg_wnd_spd_10m_pst2mts`, `avg_wnd_dir_10m_pst2mts`; the 10-minute mean if those are missing). |
 | `gust_kmh` | number or null | Highest wind speed in the last 10 minutes (`max_wnd_spd_10m_pst10mts`). |
 | `pressure_kpa` | number or null | Mean sea level pressure, kPa, 2 decimals (`mslp` / 10; 1 kPa = 0.2953 inHg). |
 | `pressure_tendency` | string or null | `rising`, `falling` or `steady` over 3 h, from the WMO tendency code (table 0200: 0 to 3 rising, 4 steady, 5 to 8 falling; a net change of 0 is steady). Readers must accept other values. |
 | `pressure_change_3h_kpa` | number or null | Net change over 3 h, kPa (`pres_tend_amt_pst3hrs` / 10). |
-| `precip_1h_mm` | number or null | Precipitation in the hour ending at `observed_at`, mm (`pcpn_amt_pst1hr`). |
+| `precip_1h_mm` | number or null | Precipitation in the hour ending at `values_from.hourly_at` (`observed_at` in older blocks), mm (`pcpn_amt_pst1hr`). |
 | `high_so_far`, `low_so_far` | number or null | Highest and lowest temperature in the hourly records after `so_far_since` (`max_air_temp_pst1hr`, `min_air_temp_pst1hr`), deg C. Null before the first hour is in. |
-| `precip_so_far_mm` | number or null | Sum of the hourly amounts after `so_far_since`. Null if any of those hours is missing (the sum would undercount). |
+| `precip_so_far_mm` | number or null | Sum of the hourly amounts after `so_far_since`. Null if any of those hours is missing, as a value or as a whole record (a station gap), because the sum would undercount. |
 | `so_far_since` | UTC time | Start of the climate day: 06 UTC, the same day boundary scoring uses. Show it in the phone's own time zone. |
 | `so_far_hours` | integer | How many hourly records the so-far values cover (0 to 24). |
 
 Notes:
-- A value whose SWOB quality flag is not "passed" (100) is published as null.
+- Current values (temp, dew point, humidity, wind, gust) come from whichever record is newer, the minute or the hourly one. A minute value is used only if it has a quality flag and the flag is "passed" (100); otherwise the hourly value is used, so a value is not left blank just because the minute record lacks it. Minute records carry no flag on dew point, wind or gust (checked on 200 records, 25 and 26 Nov 2026), so today those come from the hourly record.
+- An hourly value whose SWOB quality flag is there and not "passed" (100) is published as null.
 - Feels like (wind chill or humidex) is not published: the app works it out from `temp`, `wind_kmh` and `dew_point` with ECCC's formulas.
 
-Example (real data, Kitimat Forest Ave, observed 25 Nov 2026 21:00 UTC):
+Example (real data, Kitimat Forest Ave, fetched 26 Nov 2026 01:07 UTC; saved answers in `tests/fixtures/`). Temperature and humidity are from the 01:07 minute record, the rest from the 01:00 hourly record. The 22:00 record is missing (a station gap), so there is no precipitation total. Tendency is null because the station's hourly records since the gap (23:00 to 01:00) carry no tendency:
 
 ```json
-"now": {"observed_at": "2026-11-25T21:00:00Z", "fetched_at": "2026-11-25T21:40:21Z", "source": "ECCC SWOB real-time (MSC GeoMet swob-realtime)", "station": {"network": "ECCC", "id": "1064324", "name": "Kitimat Forest Ave", "distance_km": 2.0}, "temp": 3.5, "dew_point": 3.5, "humidity": 100, "wind_kmh": 0.5, "wind_dir_deg": 0, "gust_kmh": 2.0, "pressure_kpa": 100.22, "pressure_tendency": "rising", "pressure_change_3h_kpa": 0.02, "precip_1h_mm": 0.7, "high_so_far": 4.0, "low_so_far": 1.9, "precip_so_far_mm": 8.2, "so_far_since": "2026-11-25T06:00:00Z", "so_far_hours": 15}
+"now": {"observed_at": "2026-11-26T01:07:00Z", "fetched_at": "2026-11-26T01:07:44Z", "source": "ECCC SWOB real-time (MSC GeoMet swob-realtime)", "station": {"network": "ECCC", "id": "1064324", "name": "Kitimat Forest Ave", "distance_km": 2.0}, "values_from": {"minute_at": "2026-11-26T01:07:00Z", "hourly_at": "2026-11-26T01:00:00Z", "temp": "minute", "dew_point": "hourly", "humidity": "minute", "wind": "hourly", "gust": "hourly"}, "temp": 3.7, "dew_point": 3.7, "humidity": 100, "wind_kmh": 0.3, "wind_dir_deg": 190, "gust_kmh": 2.6, "pressure_kpa": 99.98, "pressure_tendency": null, "pressure_change_3h_kpa": null, "precip_1h_mm": 0.0, "high_so_far": 4.0, "low_so_far": 1.9, "precip_so_far_mm": null, "so_far_since": "2026-11-25T06:00:00Z", "so_far_hours": 18}
 ```
 
 ## Example

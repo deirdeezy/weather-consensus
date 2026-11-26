@@ -4,7 +4,7 @@ Source: MSC GeoMet OGC API, collection swob-realtime (checked live 25 Nov 2026):
 https://api.weather.gc.ca/collections/swob-realtime
 Surface weather observations from ECCC and partner networks, last 30 days.
 One record per minute and one per hour per station; `_is-minutely_obs-value`
-tells them apart. We read only the hourly records.
+tells them apart.
 
 Station rule (owner decision, 25 Nov 2026): a place shows observations only
 from a station it approves in config/places.json (`obs_station`), that is run
@@ -12,17 +12,30 @@ by ECCC itself (SWOB `data_pvdr-value` "MSC", so no NAV CANADA or partner
 station), and that lies within MAX_KM of the place. Places without one get no
 "now" block.
 
-One request per place per hour: every hourly record since the start of the
-current climate day (06 UTC, as scoring uses) or the last 13 hours, whichever
-is longer. The newest record is "now"; the records after 06 UTC give the
-observed high, low and precipitation so far. Chosen over keeping a running
-high and low in the store: nothing to get out of step after a missed hour or a
-late record, and a missed hour is recovered by the next run. With `properties`
-the answer is about 6 KB (109 KB without).
+Two requests per place per hour:
+1. Every hourly record since the start of the current climate day (06 UTC, as
+   scoring uses) or the last 13 hours, whichever is longer. The records after
+   06 UTC give the observed high, low and precipitation so far. Chosen over
+   keeping a running high and low in the store: nothing to get out of step
+   after a missed hour or a late record, and a missed hour is recovered by the
+   next run. With `properties` the answer is about 6 KB (109 KB without).
+2. The newest minute record (limit 1, about 4.5 KB). Hourly records post 0 to
+   6 minutes after the hour (Datamart file times, 25 Nov 2026), so without it
+   "now" is up to about 70 minutes old when the job runs.
+
+Current values (owner rule, 26 Nov 2026): temp, dew point, humidity, wind and
+gust come from whichever record is newer, the minute or the hourly one. A
+minute value is used only if its SWOB quality flag is there and passed (100).
+Minute records carry no flag on dew point, wind or gust (checked on 200
+records, 25 and 26 Nov 2026), so those fall back to the newest hourly record
+rather than going blank. Pressure, tendency and the last hour's precipitation
+always come from the hourly record. `values_from` in the block says which
+record each value came from and when that record was observed. If the minute
+request fails, the block is built from hourly records alone, as before.
 
 Usage policy (https://eccc-msc.github.io/open-data/usage-policy/readme_en,
 checked 25 Nov 2026): add a meaningful User-Agent; ask only for data we use;
-no no-cache headers; contact MSC above 86,400 requests a day (we make 24).
+no no-cache headers; contact MSC above 86,400 requests a day (we make 48).
 Licence: ECCC Data Server End-use Licence (same credit as the daily data,
 backend/wxc/eccc.py); it must not be used in a way that suggests official
 status or endorsement (section 5).
@@ -74,9 +87,18 @@ def day_start(now: int) -> dt.datetime:
 
 
 def query_url(climate_id: str, since: dt.datetime) -> str:
+    """Every hourly record since `since`, oldest first."""
     q = {"f": "json", "clim_id-value": climate_id, "_is-minutely_obs-value": "false",
          "datetime": f"{since:%Y-%m-%dT%H:%M:%SZ}/..", "sortby": "date_tm-value",
          "limit": 100, "properties": ",".join(FIELDS)}
+    return URL + "?" + urllib.parse.urlencode(q)
+
+
+def minute_query_url(climate_id: str, since: dt.datetime) -> str:
+    """The newest minute record since `since` (one record)."""
+    q = {"f": "json", "clim_id-value": climate_id, "_is-minutely_obs-value": "true",
+         "datetime": f"{since:%Y-%m-%dT%H:%M:%SZ}/..", "sortby": "-date_tm-value",
+         "limit": 1, "properties": ",".join(FIELDS)}
     return URL + "?" + urllib.parse.urlencode(q)
 
 
@@ -119,6 +141,14 @@ def _num(props: dict, key: str):
     return float(v)
 
 
+def _num_flagged(props: dict, key: str):
+    """A minute-record value we trust: as `_num`, and its quality flag must be
+    there and passed. A missing flag means use the hourly value instead."""
+    if props.get(f"{key}-qa") != QA_GOOD:
+        return None
+    return _num(props, key)
+
+
 def _r(x, nd):
     return None if x is None else round(x, nd)
 
@@ -147,42 +177,71 @@ def tendency(code, change_hpa) -> str | None:
     return None
 
 
+def _wind(props: dict, num) -> tuple:
+    """2-minute mean wind and direction, or the 10-minute mean if it is missing."""
+    wind, wind_dir = num(props, WIND), _num(props, WIND_DIR)
+    if wind is None:
+        wind, wind_dir = num(props, WIND10), _num(props, WIND_DIR10)
+    return wind, wind_dir
+
+
 def build_now(records: list[dict], geometry: dict | None, place: dict, station: dict,
-              now: int) -> dict | None:
-    """The "now" block from hourly records (oldest first). None if no record."""
+              now: int, minute: dict | None = None) -> dict | None:
+    """The "now" block from hourly records (oldest first) and, if given, the
+    newest minute record. None if there is no hourly record."""
     recs = [(t, p) for p in records if (t := _time(p)) is not None]
     recs.sort(key=lambda r: r[0])
     if not recs:
         return None
     t, p = recs[-1]
     start = day_start(now)
-    window = [q for (u, q) in recs if start < u <= dt.datetime.fromtimestamp(now, dt.timezone.utc)]
+    window = [(u, q) for (u, q) in recs if start < u <= dt.datetime.fromtimestamp(now, dt.timezone.utc)]
 
-    wind = _num(p, WIND)
-    wind_dir = _num(p, WIND_DIR)
-    if wind is None:  # fall back to the 10-minute mean
-        wind, wind_dir = _num(p, WIND10), _num(p, WIND_DIR10)
+    # Current values: the minute record when it is newer and the value has a
+    # passed quality flag; otherwise the newest hourly record.
+    tm = _time(minute) if minute else None
+    if tm is None or tm <= t:
+        minute, tm = None, None
+    picked, used = {}, {}
+    for name, key in (("temp", "air_temp"), ("dew_point", "dwpt_temp"), ("humidity", "rel_hum"),
+                      ("gust", GUST)):
+        v = _num_flagged(minute, key) if minute else None
+        picked[name], used[name] = (v, "minute") if v is not None else (_num(p, key), "hourly")
+    wind = _wind(minute, _num_flagged) if minute else (None, None)
+    picked["wind"], used["wind"] = (wind, "minute") if wind[0] is not None else (_wind(p, _num), "hourly")
+    wind, wind_dir = picked["wind"]
+    in_use = "minute" in used.values()
+    observed = tm if in_use else t
     mslp = _num(p, "mslp")
     change = _num(p, "pres_tend_amt_pst3hrs")
 
-    highs = [x for q in window if (x := _num(q, "max_air_temp_pst1hr")) is not None]
-    lows = [x for q in window if (x := _num(q, "min_air_temp_pst1hr")) is not None]
-    rain = [_num(q, "pcpn_amt_pst1hr") for q in window]
+    highs = [x for _, q in window if (x := _num(q, "max_air_temp_pst1hr")) is not None]
+    lows = [x for _, q in window if (x := _num(q, "min_air_temp_pst1hr")) is not None]
+    rain = [_num(q, "pcpn_amt_pst1hr") for _, q in window]
+    # A station gap leaves an hour with no record at all: the total would
+    # undercount, so count the hours that should be there up to the newest one.
+    hours_due = int((window[-1][0] - start).total_seconds() // 3600) if window else 0
+    complete = len({u for u, _ in window}) >= hours_due
     lon, lat = (geometry or {}).get("coordinates", [None, None])[:2]
     return {
-        "observed_at": iso(int(t.timestamp())),
+        "observed_at": iso(int(observed.timestamp())),
         "fetched_at": iso(now),
         "source": SOURCE,
         "station": {
             "network": station["network"], "id": station["climate_id"], "name": station["name"],
             "distance_km": None if lat is None else round(distance_km(place["lat"], place["lon"], lat, lon), 1),
         },
-        "temp": _r(_num(p, "air_temp"), 1),
-        "dew_point": _r(_num(p, "dwpt_temp"), 1),
-        "humidity": None if (h := _num(p, "rel_hum")) is None else int(round(h)),
+        "values_from": {
+            "minute_at": iso(int(tm.timestamp())) if in_use else None,
+            "hourly_at": iso(int(t.timestamp())),
+            **{k: used[k] for k in ("temp", "dew_point", "humidity", "wind", "gust")},
+        },
+        "temp": _r(picked["temp"], 1),
+        "dew_point": _r(picked["dew_point"], 1),
+        "humidity": None if (h := picked["humidity"]) is None else int(round(h)),
         "wind_kmh": _r(wind, 1),
         "wind_dir_deg": None if wind_dir is None else int(round(wind_dir)) % 360,
-        "gust_kmh": _r(_num(p, GUST), 1),
+        "gust_kmh": _r(picked["gust"], 1),
         "pressure_kpa": None if mslp is None else round(mslp / 10, 2),
         "pressure_tendency": tendency(_num(p, "pres_tend_char_pst3hrs"), change),
         "pressure_change_3h_kpa": None if change is None else round(change / 10, 2),
@@ -190,8 +249,8 @@ def build_now(records: list[dict], geometry: dict | None, place: dict, station: 
         "high_so_far": _r(max(highs), 1) if highs else None,
         "low_so_far": _r(min(lows), 1) if lows else None,
         # A missing hour would undercount the total: no total then.
-        "precip_so_far_mm": (round(sum(rain), 1) if rain and all(x is not None for x in rain)
-                             else None),
+        "precip_so_far_mm": (round(sum(rain), 1)
+                             if rain and complete and all(x is not None for x in rain) else None),
         "so_far_since": iso(int(start.timestamp())),
         "so_far_hours": len(window),
     }
@@ -229,13 +288,32 @@ def fetch_now(place: dict, store: Path, now: int | None = None, get=get_json,
         log("eccc_swob", "obs", f"station {station['climate_id']} provider {provider!r}, not ECCC: not shown")
         return None
     geometry = newest.get("geometry")
-    block = build_now([f["properties"] for f in feats], geometry, place, station, now)
+    minute = fetch_minute(station, since, get, log)
+    block = build_now([f["properties"] for f in feats], geometry, place, station, now, minute)
     km = block["station"]["distance_km"] if block else None
     if km is None or km > MAX_KM:
         log("eccc_swob", "obs", f"station {station['climate_id']} at {km} km, over {MAX_KM:g} km: not shown")
         return None
     _write_json(store / place["id"] / "now.json", block)
     return block
+
+
+def fetch_minute(station: dict, since: dt.datetime, get, log) -> dict | None:
+    """Properties of the newest minute record from the station, or None. A
+    refusal is logged and the block is then built from hourly records alone."""
+    try:
+        payload = get(minute_query_url(station["climate_id"], since),
+                      log=lambda k, d: log("eccc_swob", k, f"minute record: {d}"))
+    except Exception as e:
+        log("eccc_swob", "gave_up", f"minute record: {e}")
+        return None
+    recs = [f["properties"] for f in payload.get("features", []) or []
+            if isinstance(f, dict) and isinstance(f.get("properties"), dict)]
+    recs = [p for p in recs
+            if str(p.get("clim_id-value")) == station["climate_id"]
+            and p.get("_is-minutely_obs-value") is True
+            and p.get("data_pvdr-value") == ECCC_PROVIDER and _time(p) is not None]
+    return max(recs, key=_time) if recs else None
 
 
 def load_now(store: Path, place: dict) -> dict | None:

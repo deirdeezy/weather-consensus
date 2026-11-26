@@ -92,6 +92,20 @@
                          "name": {"type": "string"},
                          "distance_km": {"type": "number", "minimum": 0, "maximum": 10}}
         },
+        "values_from": {
+          "description": "Which SWOB record each current value came from. Absent in blocks written before 26 Nov 2026 (all hourly then).",
+          "type": "object",
+          "required": ["minute_at", "hourly_at", "temp", "dew_point", "humidity", "wind", "gust"],
+          "properties": {
+            "minute_at": {"anyOf": [{"$ref": "#/$defs/utc"}, {"type": "null"}]},
+            "hourly_at": {"$ref": "#/$defs/utc"},
+            "temp": {"$ref": "#/$defs/record"},
+            "dew_point": {"$ref": "#/$defs/record"},
+            "humidity": {"$ref": "#/$defs/record"},
+            "wind": {"$ref": "#/$defs/record"},
+            "gust": {"$ref": "#/$defs/record"}
+          }
+        },
         "temp": {"type": ["number", "null"]},
         "dew_point": {"type": ["number", "null"]},
         "humidity": {"$ref": "#/$defs/percent"},
@@ -122,6 +136,7 @@
   "$defs": {
     "utc": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
     "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
-    "percent": {"type": ["integer", "null"], "minimum": 0, "maximum": 100}
+    "percent": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+    "record": {"type": "string", "description": "minute or hourly; readers must accept other values."}
   }
 }

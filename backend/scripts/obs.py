@@ -46,7 +46,8 @@ def main() -> int:
             ok = False
             continue
         print(f"{place['name']}: {st['name']} ({b['station']['distance_km']} km), "
-              f"observed {b['observed_at']}: {b['temp']} deg C, wind {b['wind_kmh']} km/h, "
+              f"observed {b['observed_at']} ({b['values_from']['temp']} record): "
+              f"{b['temp']} deg C, wind {b['wind_kmh']} km/h ({b['values_from']['wind']}), "
               f"so far high {b['high_so_far']} low {b['low_so_far']} "
               f"precip {b['precip_so_far_mm']} mm ({b['so_far_hours']} h)")
     return 0 if ok else 1

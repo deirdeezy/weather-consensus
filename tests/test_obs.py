@@ -31,12 +31,16 @@ def quiet(*a):
     pass
 
 
-def fake_get(payload):
+EMPTY = {"type": "FeatureCollection", "features": []}
+
+
+def fake_get(payload, minute=EMPTY):
+    """Answers the hourly query with `payload` and the minute query with `minute`."""
     calls = []
 
     def get(url, log=print):
         calls.append(url)
-        return copy.deepcopy(payload)
+        return copy.deepcopy(minute if "_is-minutely_obs-value=true" in url else payload)
     get.calls = calls
     return get
 
@@ -101,12 +105,21 @@ def test_query_asks_for_hourly_records_since_06_utc_with_few_fields():
     assert "properties=" in url
 
 
-def test_one_request_per_place_reaches_back_13_hours_after_06_utc(tmp_path):
+def test_two_requests_per_place_reach_back_13_hours_after_06_utc(tmp_path):
     early = int(dt.datetime(2026, 11, 25, 7, 17, tzinfo=dt.timezone.utc).timestamp())
     get = fake_get(FIXTURE)
     obs.fetch_now(PLACE, tmp_path, now=early, get=get, echo=quiet)
-    assert len(get.calls) == 1
-    assert "datetime=2026-11-24T18%3A17%3A00Z" in get.calls[0]
+    assert len(get.calls) == 2
+    assert "_is-minutely_obs-value=false" in get.calls[0] and "limit=100" in get.calls[0]
+    assert "_is-minutely_obs-value=true" in get.calls[1]
+    assert all("datetime=2026-11-24T18%3A17%3A00Z" in u for u in get.calls)
+
+
+def test_minute_query_asks_for_the_newest_record_only():
+    url = obs.minute_query_url("1064324", obs.day_start(FETCHED))
+    assert "_is-minutely_obs-value=true" in url
+    assert "sortby=-date_tm-value" in url and "limit=1&" in url
+    assert "clim_id-value=1064324" in url and "properties=" in url
 
 
 def test_day_start_is_06_utc_of_the_climate_day():
@@ -293,3 +306,151 @@ def test_now_block_holds_no_urls_or_local_paths(tmp_path):
     text = json.dumps(b)
     for bad in ("http", "/Users/", "/home/", str(tmp_path), ".json", ".xml"):
         assert bad not in text, bad
+
+
+# --- current values from the minute record -----------------------------------
+# Real answers, Kitimat Forest Ave, fetched 26 Nov 2026 01:07:44 UTC with
+# obs.query_url and obs.minute_query_url. The hourly answer has no 22:00 UTC
+# record: the station sent nothing from 21:25 to 22:04 UTC on 25 Nov (Datamart
+# minute files), so that hour never came. The "as-of" minute answers are the
+# same query with the datetime range closed at 21:50 and 22:21 UTC: what a run
+# at those times would have seen.
+
+def fixture(name):
+    return json.loads((ROOT / "tests" / "fixtures" / name).read_text())
+
+
+HOURLY_0107 = fixture("swob-kitimat-2026-11-26T0107Z.json")
+MINUTE_0107 = fixture("swob-kitimat-2026-11-26T0107Z-minute.json")
+MINUTE_2221 = fixture("swob-kitimat-minute-as-of-2026-11-25T2221Z.json")
+MINUTE_2150 = fixture("swob-kitimat-minute-as-of-2026-11-25T2150Z.json")
+AT_0107 = int(dt.datetime(2026, 11, 26, 1, 7, 44, tzinfo=dt.timezone.utc).timestamp())
+
+
+def at(h, m, day=25):
+    return int(dt.datetime(2026, 11, day, h, m, tzinfo=dt.timezone.utc).timestamp())
+
+
+def hourly_until(payload, when):
+    """The hourly answer as a run at `when` would have had it."""
+    out = copy.deepcopy(payload)
+    out["features"] = [f for f in out["features"]
+                       if f["properties"]["date_tm-value"] <= obs.iso(when).replace("Z", ".000Z")]
+    return out
+
+
+def first(payload):
+    return payload["features"][0]["properties"]
+
+
+def test_saved_minute_records_have_no_flag_on_dew_point_wind_or_gust():
+    for m in (MINUTE_0107, MINUTE_2221, MINUTE_2150):
+        p = first(m)
+        assert p["_is-minutely_obs-value"] is True
+        assert p["air_temp-qa"] == 100 and p["rel_hum-qa"] == 100
+        for key in ("dwpt_temp", obs.WIND, obs.WIND10, obs.GUST):
+            assert p.get(key) is not None and p.get(f"{key}-qa") is None, key
+
+
+def test_newer_minute_record_gives_temp_and_humidity_the_hourly_one_the_rest(tmp_path):
+    b = obs.fetch_now(PLACE, tmp_path, now=AT_0107, get=fake_get(HOURLY_0107, MINUTE_0107), echo=quiet)
+    m, h = first(MINUTE_0107), props(HOURLY_0107)[-1]
+    assert m["date_tm-value"] == "2026-11-26T01:07:00.000Z" and h["date_tm-value"] == "2026-11-26T01:00:00.000Z"
+    assert b["observed_at"] == "2026-11-26T01:07:00Z"
+    assert b["values_from"] == {"minute_at": "2026-11-26T01:07:00Z", "hourly_at": "2026-11-26T01:00:00Z",
+                                "temp": "minute", "dew_point": "hourly", "humidity": "minute",
+                                "wind": "hourly", "gust": "hourly"}
+    assert list(b["values_from"])[2:] == ["temp", "dew_point", "humidity", "wind", "gust"]
+    assert b["temp"] == m["air_temp"] and b["humidity"] == round(m["rel_hum"])
+    # No flag on the minute dew point, wind and gust: the hourly values, not blanks.
+    assert b["dew_point"] == h["dwpt_temp"] is not None
+    assert b["wind_kmh"] == h[obs.WIND] is not None
+    assert b["gust_kmh"] == h[obs.GUST] is not None
+    # Pressure, tendency and the last hour's precipitation: always the hourly record.
+    assert b["pressure_kpa"] == round(h["mslp"] / 10, 2)
+    assert b["pressure_tendency"] == obs.tendency(h["pres_tend_char_pst3hrs"], h["pres_tend_amt_pst3hrs"])
+    assert b["precip_1h_mm"] == h["pcpn_amt_pst1hr"]
+
+
+def test_minute_value_with_a_passed_flag_is_used():
+    m = {**first(MINUTE_0107), "dwpt_temp-qa": 100, f"{obs.WIND}-qa": 100, f"{obs.GUST}-qa": 100}
+    b = obs.build_now(props(HOURLY_0107), None, PLACE, STATION, AT_0107, m)
+    assert {k: b["values_from"][k] for k in ("dew_point", "wind", "gust")} == \
+        {"dew_point": "minute", "wind": "minute", "gust": "minute"}
+    assert b["dew_point"] == m["dwpt_temp"] and b["wind_kmh"] == m[obs.WIND] and b["gust_kmh"] == m[obs.GUST]
+    assert b["wind_dir_deg"] == round(m[obs.WIND_DIR]) % 360
+
+
+def test_minute_value_that_failed_its_check_falls_back_to_the_hourly_one():
+    m = {**first(MINUTE_0107), "air_temp-qa": 0, "rel_hum-qa": 10}
+    b = obs.build_now(props(HOURLY_0107), None, PLACE, STATION, AT_0107, m)
+    h = props(HOURLY_0107)[-1]
+    assert b["temp"] == h["air_temp"] and b["humidity"] == round(h["rel_hum"])
+    assert set(b["values_from"].values()) == {"hourly", "2026-11-26T01:00:00Z", None}
+    assert b["observed_at"] == "2026-11-26T01:00:00Z"  # nothing came from the minute record
+
+
+def test_minute_record_no_newer_than_the_hourly_one_is_not_used():
+    same = {**first(MINUTE_0107), "date_tm-value": "2026-11-26T01:00:00.000Z", "air_temp": 30.0}
+    b = obs.build_now(props(HOURLY_0107), None, PLACE, STATION, AT_0107, same)
+    assert b["observed_at"] == "2026-11-26T01:00:00Z" and b["temp"] != 30.0
+    assert b["values_from"]["minute_at"] is None and b["values_from"]["temp"] == "hourly"
+
+
+def test_station_gap_a_run_at_22_21_shows_the_minute_record_and_the_21_00_hour(tmp_path):
+    when = at(22, 21)
+    hourly = hourly_until(HOURLY_0107, when)
+    assert props(hourly)[-1]["date_tm-value"] == "2026-11-25T21:00:00.000Z"  # 22:00 never came
+    b = obs.fetch_now(PLACE, tmp_path, now=when, get=fake_get(hourly, MINUTE_2221), echo=quiet)
+    assert b["observed_at"] == "2026-11-25T22:21:00Z"
+    assert b["values_from"]["hourly_at"] == "2026-11-25T21:00:00Z"
+    assert b["temp"] == first(MINUTE_2221)["air_temp"]
+    assert b["wind_kmh"] == props(hourly)[-1][obs.WIND]
+    assert b["so_far_hours"] == 15 and b["precip_so_far_mm"] is not None
+
+
+def test_station_gap_a_run_inside_the_gap_shows_the_last_minute_before_it(tmp_path):
+    when = at(21, 50)
+    b = obs.fetch_now(PLACE, tmp_path, now=when, get=fake_get(hourly_until(HOURLY_0107, when), MINUTE_2150),
+                      echo=quiet)
+    assert b["observed_at"] == "2026-11-25T21:24:00Z"  # station silent from 21:25
+    assert b["values_from"]["temp"] == "minute"
+
+
+def test_station_gap_a_missing_hour_leaves_no_precip_total(tmp_path):
+    b = obs.fetch_now(PLACE, tmp_path, now=AT_0107, get=fake_get(HOURLY_0107, MINUTE_0107), echo=quiet)
+    times = [p["date_tm-value"][11:16] for p in props(HOURLY_0107)]
+    assert "22:00" not in times and "23:00" in times
+    assert b["so_far_hours"] == 18  # 07 to 01 UTC is 19 hours, one missing
+    assert b["precip_so_far_mm"] is None
+    assert b["high_so_far"] is not None and b["low_so_far"] is not None
+
+
+def test_refused_minute_request_still_publishes_from_hourly_records(tmp_path):
+    def get(url, log=print):
+        if "_is-minutely_obs-value=true" in url:
+            log("limit", "try 1/4: HTTP 429")
+            raise RuntimeError("no answer after 4 tries: HTTP 429")
+        return copy.deepcopy(HOURLY_0107)
+
+    b = obs.fetch_now(PLACE, tmp_path, now=AT_0107, get=get, echo=quiet)
+    assert b["observed_at"] == "2026-11-26T01:00:00Z" and b["values_from"]["minute_at"] is None
+    recs = [json.loads(x) for x in (tmp_path / "refusals.jsonl").read_text().splitlines()]
+    assert [r["kind"] for r in recs] == ["limit", "gave_up"]
+    assert all("minute record" in r["detail"] for r in recs)
+
+
+@pytest.mark.parametrize("change", [{"clim_id-value": "1068134"}, {"data_pvdr-value": "NAV CANADA"},
+                                    {"_is-minutely_obs-value": False}])
+def test_minute_record_from_another_station_or_provider_is_ignored(tmp_path, change):
+    m = copy.deepcopy(MINUTE_0107)
+    m["features"][0]["properties"].update(change)
+    b = obs.fetch_now(PLACE, tmp_path, now=AT_0107, get=fake_get(HOURLY_0107, m), echo=quiet)
+    assert b["observed_at"] == "2026-11-26T01:00:00Z"
+
+
+def test_published_block_with_minute_values_matches_the_schema(tmp_path):
+    b = obs.fetch_now(PLACE, tmp_path, now=AT_0107, get=fake_get(HOURLY_0107, MINUTE_0107), echo=quiet)
+    doc = _doc(b)
+    jsonschema.validate(doc, strict(SCHEMA), format_checker=jsonschema.FormatChecker())
+    assert doc["now"]["values_from"]["temp"] == "minute"
