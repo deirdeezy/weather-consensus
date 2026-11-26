@@ -5,14 +5,21 @@ struct ForecastCard: View {
     let forecast: PlaceForecast
     @Binding var expandedDay: Int?
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         let names = SourceNames(forecast)
+        // At accessibility sizes the hint goes under the heading, so "14-day forecast" never breaks mid-word.
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let headerLayout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
         Card(padding: EdgeInsets(top: 16, leading: 12, bottom: 8, trailing: 12)) {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline) {
+                headerLayout {
                     Text("14-day forecast").font(.inter(18, .extraBold, relativeTo: .headline))
                         .accessibilityAddTraits(.isHeader)
-                    Spacer(minLength: 8)
+                    if !stacked { Spacer(minLength: 8) }
                     Text("Tap a day for details").font(.inter(12.5, .regular, relativeTo: .caption))
                         .foregroundStyle(Color(Palette.textSecondary))
                         .accessibilityHidden(true)

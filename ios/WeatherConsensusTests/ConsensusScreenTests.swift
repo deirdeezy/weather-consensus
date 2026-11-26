@@ -71,7 +71,8 @@ struct ConsensusScreenTests {
         #expect(texts.contains { $0.hasPrefix("We check each source for new forecast runs") })
     }
 
-    @MainActor @Test(arguments: [SourceBar.large, SourceBar.small])
+    // Literal arguments (the macro evaluates them off the main actor); the first check ties them to SourceBar.
+    @MainActor @Test(arguments: [22, 14] as [CGFloat])
     func sourceBarHeightIsFixedAtEveryTextSize(thickness: CGFloat) throws {
         #expect(SourceBar.large == 22 && SourceBar.small == 14)
         let forecast = try Fixture.forecast()

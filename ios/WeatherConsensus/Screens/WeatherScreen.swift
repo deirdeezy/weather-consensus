@@ -380,9 +380,10 @@ extension ForecastScreenModel {
         }
         let forecast = try! ForecastDecoder.decode(data)
         let store = ForecastStore(directory: URL.temporaryDirectory.appending(path: "PreviewForecasts"))
+        let fileData = data
         let loader = ForecastLoader(store: store) { _ in
             if offline { throw URLError(.notConnectedToInternet) }
-            return data
+            return fileData
         }
         return ForecastScreenModel(placeID: "kitimat", forecast: forecast, loader: loader)
     }
