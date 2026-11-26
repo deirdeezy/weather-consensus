@@ -36,6 +36,15 @@ Endpoints (checked 24 Nov 2026):
 - Single Runs: SINGLE_RUNS. Docs https://open-meteo.com/en/docs/single-runs-api
   The full run for one initialisation time (&run=YYYY-MM-DDTHH:MM). "Most
   models are archived from 2nd of April 2026." No ensembles (checked live).
+- Rate-limit refusals (https://github.com/open-meteo/open-meteo/blob/main/docs/api-rate-limiting.md
+  and Sources/App/Helper/Vapor/RateLimiter.swift, checked 26 Nov 2026): HTTP 429
+  with reason "Minutely ...", "Hourly ..." or "Daily API request limit
+  exceeded", plus a Retry-After header in seconds. Usage "is generally shared
+  by requests from the same public IP address", so a GitHub runner can be
+  refused when other users of its address used the quota. Only the minutely
+  limit can clear within our retry waits; get_json gives up at once on the
+  others (the 25 Nov 19:37 UTC nightly run spent 26 minutes retrying a daily
+  refusal 8 times per call).
 - Ensemble history: none. Past ensemble runs are not served by Single Runs or
   the Ensemble API (checked live 24 Nov 2026); the Ensemble Mean API keeps a
   best-estimate series, not forecasts by lead.
@@ -65,6 +74,21 @@ class LimitRefused(RuntimeError):
     """Open-Meteo refused the call because the address hit its limit."""
 
 
+RETRY_AFTER_MAX_S = 120  # a refusal that asks for a longer wait is not retried
+
+
+def _wait_too_long(reason: str, retry_after) -> bool:
+    """True for a refusal our retries cannot outwait: the hourly or daily
+    limit, or a Retry-After longer than RETRY_AFTER_MAX_S."""
+    r = reason.lower()
+    if r.startswith(("daily", "hourly", "monthly")):
+        return True
+    try:
+        return float(retry_after) > RETRY_AFTER_MAX_S
+    except (TypeError, ValueError):
+        return False
+
+
 def get_json(url: str, tries: int = 8, log=print, sleep=time.sleep) -> dict:
     """GET with retries. Raises LimitRefused if no try succeeds.
 
@@ -73,10 +97,12 @@ def get_json(url: str, tries: int = 8, log=print, sleep=time.sleep) -> dict:
     """
     last = None
     for k in range(tries):
+        retry_after = None
         try:
             with urllib.request.urlopen(url, timeout=120) as r:
                 data = json.load(r)
         except urllib.error.HTTPError as e:
+            retry_after = e.headers.get("Retry-After") if e.headers else None
             try:
                 data = json.loads(e.read())
             except Exception:
@@ -88,6 +114,8 @@ def get_json(url: str, tries: int = 8, log=print, sleep=time.sleep) -> dict:
         if data is not None and data.get("error") and "limit" in str(data.get("reason", "")).lower():
             last = data.get("reason")
             log("limit", f"try {k + 1}/{tries}: {last}")
+            if _wait_too_long(str(last), retry_after):
+                break  # retrying for a minute or two cannot help
             sleep(4 + 2 * k)
             continue
         if data is None:

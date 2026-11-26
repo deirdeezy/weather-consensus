@@ -3,6 +3,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from wxc import openmeteo as om  # noqa: E402
@@ -114,6 +116,43 @@ def test_get_json_logs_every_failed_try(monkeypatch):
     except om.LimitRefused:
         pass
     assert calls == ["network"] * 3
+
+
+def _refusing(monkeypatch, reason, retry_after):
+    """urlopen that always answers like Open-Meteo's rate limiter (HTTP 429)."""
+    import io
+    import urllib.error
+    from email.message import Message
+    calls = []
+
+    def urlopen(url, timeout):
+        calls.append(url)
+        headers = Message()
+        headers["Retry-After"] = str(retry_after)
+        body = json.dumps({"error": True, "reason": reason}).encode()
+        raise urllib.error.HTTPError(url, 429, "Too Many Requests", headers, io.BytesIO(body))
+
+    monkeypatch.setattr(om.urllib.request, "urlopen", urlopen)
+    return calls
+
+
+@pytest.mark.parametrize("reason,retry_after", [
+    ("Daily API request limit exceeded. Please try again tomorrow.", 15000),
+    ("Hourly API request limit exceeded. Please try again in the next hour.", 3500),
+    ("API request limit exceeded.", 900)])  # unknown wording, long Retry-After
+def test_limit_that_cannot_clear_soon_is_not_retried(monkeypatch, reason, retry_after):
+    calls, log, slept = _refusing(monkeypatch, reason, retry_after), [], []
+    with pytest.raises(om.LimitRefused, match="limit exceeded"):
+        om.get_json("https://example.invalid", log=lambda k, d: log.append(k), sleep=slept.append)
+    assert len(calls) == 1 and log == ["limit"] and slept == []
+
+
+def test_minutely_limit_is_still_retried(monkeypatch):
+    calls, slept = _refusing(monkeypatch, "Minutely API request limit exceeded. Please try again in one minute.",
+                             42), []
+    with pytest.raises(om.LimitRefused):
+        om.get_json("https://example.invalid", tries=3, log=lambda k, d: None, sleep=slept.append)
+    assert len(calls) == 3 and slept == [4, 6, 8]
 
 
 def test_live_calls_use_current_ids_but_store_under_pilot_keys(tmp_path):
