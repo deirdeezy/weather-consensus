@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Launch screen: the Weather tab's sky with nothing on it (no text, no logo, no spinner).
+     Light appearance: the clear day sky. Dark appearance: the clear night sky.
+     Same stops as SkyView: gradient pinned to the top, middle colour at 170 pt, base colour from 640 pt down,
+     glow centred at 67% of the width and 36 pt from the top, radius 210 pt.
+     Images in Assets.xcassets (LaunchSkyGradient, LaunchSkyGlow, LaunchSkyBase) are rendered with SwiftUI from
+     the SkyStyle table, so the colours match the app's first frame. -->
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="19085" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="19082"/>
+        <capability name="Image references" minToolsVersion="12.0"/>
+        <capability name="Named colors" minToolsVersion="9.0"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--View Controller-->
+        <scene sceneID="EHf-IW-A2E">
+            <objects>
+                <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                        <rect key="frame" x="0.0" y="0.0" width="402" height="874"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="gRd-Sk-y01" userLabel="Sky gradient">
+                                <rect key="frame" x="0.0" y="0.0" width="402" height="640"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" priority="750" constant="640" id="gRd-Ht-640"/>
+                                </constraints>
+                                <imageReference key="image" image="LaunchSkyGradient"/>
+                            </imageView>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="gLw-Sk-y02" userLabel="Sky glow">
+                                <rect key="frame" x="59.34" y="-174" width="420" height="420"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="420" id="gLw-Wd-420"/>
+                                    <constraint firstAttribute="height" constant="420" id="gLw-Ht-420"/>
+                                </constraints>
+                                <imageReference key="image" image="LaunchSkyGlow"/>
+                            </imageView>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
+                        <color key="backgroundColor" name="LaunchSkyBase"/>
+                        <constraints>
+                            <constraint firstItem="gRd-Sk-y01" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="gRd-Tp-000"/>
+                            <constraint firstItem="gRd-Sk-y01" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="gRd-Ld-000"/>
+                            <constraint firstAttribute="trailing" secondItem="gRd-Sk-y01" secondAttribute="trailing" id="gRd-Tr-000"/>
+                            <constraint firstItem="gRd-Sk-y01" firstAttribute="height" relation="lessThanOrEqual" secondItem="Ze5-6b-2t3" secondAttribute="height" id="gRd-Mx-000"/>
+                            <constraint firstItem="gLw-Sk-y02" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" multiplier="1.34" id="gLw-Cx-067"/>
+                            <constraint firstItem="gLw-Sk-y02" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="top" constant="36" id="gLw-Cy-036"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="53" y="375"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="LaunchSkyGradient" width="4" height="640"/>
+        <image name="LaunchSkyGlow" width="420" height="420"/>
+        <namedColor name="LaunchSkyBase">
+            <color red="0.91764705882352937" green="0.95294117647058818" blue="0.9882352941176471" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </namedColor>
+    </resources>
+</document>
