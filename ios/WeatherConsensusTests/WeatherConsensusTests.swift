@@ -255,6 +255,30 @@ struct LoaderTests {
         #expect(model.forecast?.days.count == 14)
         #expect(model.problem == .offline)
     }
+
+    /// The first frame draws the saved place's sky, not the default day sky (launch screen hand-over).
+    @MainActor
+    @Test func savedCopyIsOnScreenBeforeAnyNetworkCall() async throws {
+        let store = makeTemporaryStore()
+        try store.save(Fixture.data(), placeID: "kitimat")
+        let calls = Toggle(false)
+        let loader = ForecastLoader(store: store) { _ in
+            await calls.set(true)
+            throw URLError(.notConnectedToInternet)
+        }
+        let model = ForecastScreenModel(placeID: "kitimat", loader: loader)
+        #expect(model.forecast == nil)
+        model.showSavedCopy()
+        #expect(model.forecast?.place.name == "Kitimat")
+        #expect(model.origin == .savedCopy)
+        #expect(await calls.value == false)
+
+        let empty = ForecastScreenModel(placeID: "kitimat", loader: ForecastLoader(store: makeTemporaryStore()) { _ in
+            throw URLError(.notConnectedToInternet)
+        })
+        empty.showSavedCopy()
+        #expect(empty.forecast == nil)
+    }
 }
 
 @Suite("Freshness")

@@ -26,11 +26,18 @@ final class ForecastScreenModel {
         self.origin = .savedCopy
     }
 
-    func load() async {
+    /// Puts the saved file on screen at once, before the first frame, so the sky starts on the place's
+    /// time of day (the launch screen hands over to it) instead of the default day sky. Does nothing if a
+    /// forecast is already showing or nothing is saved.
+    func showSavedCopy() {
         if forecast == nil, let saved = loader.savedForecast(placeID: placeID) {
             forecast = saved
             origin = .savedCopy
         }
+    }
+
+    func load() async {
+        showSavedCopy()
         isLoading = true
         let result = await loader.load(placeID: placeID)
         isLoading = false
