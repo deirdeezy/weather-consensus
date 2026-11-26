@@ -12,7 +12,9 @@ refused runs. Every failed try is one line in the log; kinds:
   error      Open-Meteo answered with an error
   meta       model-update metadata could not be read
   used_stale a download failed and the last saved copy was used
-  single_run an archived run Open-Meteo does not have
+  single_run an archived run not fetched: Open-Meteo does not have it (an
+             expected gap) or it was refused; refusals are also listed
+             in scores.json downloads_stale and fetched again next night
   publish    publish.py could not use something
   obs        a station observation was not usable or not allowed (obs.py)
 Source "eccc_swob" is the ECCC real-time station feed (limit = HTTP 429 or 503).

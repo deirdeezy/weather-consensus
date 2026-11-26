@@ -19,7 +19,7 @@ Everything runs on GitHub for $0: a public repo, GitHub Actions for the jobs, a 
 | Workflow | When (UTC) | Steps | Permissions |
 |---|---|---|---|
 | `refresh.yml` | minute 10 every hour (Cloudflare Worker); GitHub cron minute 17 as backup | `refresh.py`, `obs.py`, `publish.py`, save `data`, deploy Pages | job 1: `contents: write`; deploy: `pages: write`, `id-token: write` |
-| `nightly.yml` | 09:52 and 15:52 (Cloudflare Worker); GitHub cron 09:47 and 15:47 as backup | `score.py --if-needed`, `publish.py`, save `data`, deploy Pages; re-enable both workflows | job 1: `contents: write`; deploy: `pages: write`, `id-token: write`; keepalive: `actions: write` |
+| `nightly.yml` | 09:52 and 15:52 (Cloudflare Worker); GitHub cron 09:47 and 15:47 as backup | `score.py --if-needed`, `publish.py`, save `data`, `missing.py`; a retry job on a fresh runner if Open-Meteo refused calls for a rate limit; deploy Pages; re-enable both workflows | job 1 and retry: `contents: write`; deploy: `pages: write`, `id-token: write`; keepalive: `actions: write` |
 
 - Both also run by hand (Actions tab, Run workflow). Nightly has a "force" box to rescore.
 - What starts them: next section.
@@ -63,13 +63,26 @@ Sources (checked 25 and 26 Nov 2026):
 Both workflows share one concurrency group (`data-branch`) with `queue: max`: a run waits for the one in progress; up to 100 can wait; none is cancelled. GitHub's default (`queue: single`) would cancel a waiting run when another queues. `save_data.sh` also rebases and retries a refused push (tested locally).
 
 ### Nightly scoring after ECCC posts
-ECCC does not document when a day's values appear in the climate-daily API. On 25 Nov 2026 at 03:51 UTC the row for 24 Nov existed but was empty. So scoring runs twice: 09:47 UTC (01:47 PST) and 15:47 UTC (07:47 PST). The second run rescores only if the first did not have yesterday's station values (`score.py --if-needed`). The shadow run will show which slot gets the data; move the times then.
+ECCC does not document when a day's values appear in the climate-daily API. On 25 Nov 2026 at 03:51 UTC the row for 24 Nov existed but was empty. So scoring runs twice: 09:47 UTC (01:47 PST) and 15:47 UTC (07:47 PST). The second run rescores only if the first did not have yesterday's station values (`score.py --if-needed`). The shadow run will show which slot gets the data; move the times then. A run that had to use a saved copy for any download also does not count as scored (next section), so the second slot redoes it.
 
 ### Refusals
 - Every failed call is a line in `refusals.jsonl` on the `data` branch (kinds in `backend/scripts/refusals.py`).
 - Each run's page shows the refusals logged during that run (job summary).
 - A source that could not be pulled is a warning, not a failed run: the run still publishes and saves. A run fails only if publishing, scoring or saving fails (GitHub emails the owner on failure).
 - Shadow-run count: `uv run python backend/scripts/refusals.py --since <time>` on a checkout of `data`.
+- Each refusal line also names the runner's cloud and region (`runner`, from `backend/ci/runner_info.sh`, which both nightly jobs and the hourly job print first). The internet address itself is not logged.
+
+### Nightly: Open-Meteo rate-limit refusals (built 26 Nov 2026)
+Why: on 25 Nov 2026 the 19:37 UTC nightly got "Daily API request limit exceeded" for all 18 Open-Meteo calls (another user of the runner's shared address had used the quota). It scored on saved copies, and the 23:49 UTC nightly then skipped as "already scored", so nothing retried.
+1. `score.py` lists every download it could not refresh in `scores.json` as `downloads_stale`: `download` (`previous_runs`, `single_run`, `station`, `normal`), `source`, `day` for Single Runs, `why` (`limit` for an Open-Meteo rate-limit refusal, `error` for anything else) and `used` (the saved copy, if any).
+2. `already_scored` is false while that list has entries, so any later nightly (the retry job, the second slot, a manual run) rescores.
+3. After saving, `missing.py` lists the `limit` entries for today's issue date and sets the job output `om_refused`.
+4. `om_refused=true` starts the `retry` job: the same steps on a new runner (each job is a new VM; our first 9 runs landed in 6 cloud regions), uploaded as `github-pages-retry`. Deploy uses the retry's site when there is one.
+5. The retry job ends with `missing.py --fail-on-limit`: if rate-limit refusals still left data missing, the job fails, the run fails and GitHub emails the owner. The site and data from the retry are still saved and deployed.
+- Never counted: Single Runs Open-Meteo answers it does not have ("not available", "No data is available"). They are logged as `single_run` as before, are not stale and never fail a run. A rate-limit refusal is never treated as "gone" (it is asked for again next night).
+- Network errors are stale (a later nightly rescores) but do not start the retry or fail the run.
+- Retrying on the same runner is pointless for daily refusals: the address stays refused until Open-Meteo's daily reset (UTC midnight, `RateLimiter.swift`).
+- The hourly job has no retry: the next hourly run is already on a new runner, and sources not pulled are pulled then.
 
 ### Stale data
 Unchanged from Stage 1: `kitimat.json` sets `stale: true` after 6 hours without a new pull, and the app also checks the times itself (`docs/JSON_SCHEMA.md`). There is no failure alert for missed runs yet (see "What starts the runs"). Second route (home Mac or Google Cloud VM) is a plan, not built: switch only if the shadow run shows refusals above about 1 in 20.
@@ -117,9 +130,11 @@ Estimate: **about 350 KiB a day, 10 to 15 MB a month, 120 to 180 MB a year** (ab
 
 ## Open-Meteo calls from Actions
 - Hourly: model-update metadata (free) plus about 55 pulls a day; nightly: 9 Previous Runs calls (about 20 calls each by Open-Meteo's weighting) and 9 Single Runs. Upper bound about 350 weighted calls a day, counting every ensemble member as a variable: under 4% of the 10,000 daily limit.
+- Measured cost (Open-Meteo's `X-RateLimit-Cost` header, 26 Nov 2026): a deterministic pull 1.0, GEFS 7.09, ECMWF ENS 11.66, one Previous Runs call 20.0, one Single Run 1.0; a full nightly 18 calls, 189.0 weighted (local test run). Weighting: https://github.com/open-meteo/open-meteo/blob/main/docs/api-rate-limiting.md (calls = max(1, variables / 10 x max(1, days / 14)), every ensemble member and every model counts as variables).
+- Every counted call prints its cost and Open-Meteo's `X-RateLimit-Remaining`, `-Limit` and `-Window` in the job log (host, path and model only, never the query); each script ends with a total. Metadata files carry no such headers (not counted). A low "remaining" on a run's first call means other users of that address.
 - GitHub runners share internet addresses with other users, and Open-Meteo counts limits per address ("Usage is generally shared by requests from the same public IP address", https://github.com/open-meteo/open-meteo/blob/main/docs/api-rate-limiting.md). That is the main risk; refusals are logged and counted in the shadow run.
 - It happened on 25 Nov 2026: the 19:37 UTC nightly run got "Daily API request limit exceeded" for all 18 Open-Meteo calls, from a runner whose address others had used up. Scoring fell back to the saved copies (Previous Runs saved at 04:07 UTC); the 24 Nov Single Runs it could not get are fetched on a later night. The run took 27 min 48 s instead of under a minute because each call was retried 8 times with 4 to 18 s waits (88 s a call). Since 26 Nov, `openmeteo.get_json` gives up at once on the hourly and daily limits (or a `Retry-After` over 2 minutes) and retries only the minutely one; a refused call now costs one request.
-- If refusals stay common, the second route (`docs/BUILD_PLAN.md`) is the fix. Open-Meteo's note above also says Cloudflare Worker traffic "may be grouped by Worker identity instead" of by address; not used, and the Worker does not fetch weather data.
+- If refusals stay common after the nightly retry: Open-Meteo's terms suggest Cloudflare Workers ("we apply limits per Cloudflare user", https://open-meteo.com/en/terms, checked 26 Nov 2026) and its rate-limit note says Worker traffic "may be grouped by Worker identity instead" of by address. Researched 26 Nov 2026 as a failover route (Actions would call the Worker only after a direct refusal); on hold by owner decision, not built. The Worker still only starts runs and fetches no weather data.
 
 ## Test locally
 `backend/ci/local_test.sh` runs the job scripts against a stand-in for GitHub (a bare repo in a scratch folder), with live data:
@@ -132,9 +147,11 @@ bash backend/ci/seed_data_branch.sh /tmp/wxc-seed
 bash backend/ci/local_test.sh /tmp/wxc-ci /tmp/wxc-seed
 ```
 
-It checks: `kitimat.json` is written and matches the schema; it is not committed to `main`; nightly re-downloads are not committed; skipped and forced scoring; a push race is rebased and retried; commit identities; sizes. It cannot test GitHub's scheduler, the Actions cache, permissions, Pages deployment or runner address limits; the first runs on GitHub check those. Workflow syntax: `actionlint` (config in `.github/actionlint.yaml`; it does not know `queue` yet).
+It checks: `kitimat.json` is written and matches the schema; it is not committed to `main`; nightly re-downloads are not committed; skipped and forced scoring; simulated Open-Meteo refusals (below); a push race is rebased and retried; commit identities; sizes. It cannot test GitHub's scheduler, the Actions cache, permissions, Pages deployment or runner address limits; the first runs on GitHub check those. Workflow syntax: `actionlint` (config in `.github/actionlint.yaml`; it does not know `queue` yet).
 
 Result 25 Nov 2026: all checks passed; hourly job 11 s, forced nightly 19 s on the development Mac.
+
+Simulated refusals (added 26 Nov 2026): `backend/ci/fake_open_meteo/sitecustomize.py`, loaded only when that folder is on `PYTHONPATH` and `WXC_FAKE_OPEN_METEO` is set (never in the workflows), answers Open-Meteo calls locally: `daily` (HTTP 429 daily limit, as on 25 Nov) or `gone-runs` (Single Runs "not available"). Checks: the first job succeeds on saved copies and reports `om_refused=true`; an `--if-needed` rerun no longer skips; a retry that is still refused fails `missing.py --fail-on-limit`; a retry on a working address rescores, leaves nothing stale and passes; the next `--if-needed` run skips again; expected Single Runs gaps leave nothing stale and do not fail. Result 26 Nov 2026: 24 of 24 checks passed, against a copy of the real `data` branch.
 
 ## Working with the data locally
 ```bash
