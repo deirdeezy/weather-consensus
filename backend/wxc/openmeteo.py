@@ -45,6 +45,14 @@ Endpoints (checked 24 Nov 2026):
   limit can clear within our retry waits; get_json gives up at once on the
   others (the 25 Nov 19:37 UTC nightly run spent 26 minutes retrying a daily
   refusal 8 times per call).
+- Usage headers (checked live 26 Nov 2026): counted calls answer with
+  X-RateLimit-Cost (weighted calls this request used), X-RateLimit-Remaining,
+  X-RateLimit-Limit and X-RateLimit-Window (seconds). Metadata files carry
+  none (they are not counted). get_json prints them for every counted call
+  (note_usage) so the job log shows our own cost and how much of the
+  address's quota was left: a low Remaining on a fresh runner means other
+  users of that address. Only host, path and model are printed, never the
+  query string.
 - Ensemble history: none. Past ensemble runs are not served by Single Runs or
   the Ensemble API (checked live 24 Nov 2026); the Ensemble Mean API keeps a
   best-estimate series, not forecasts by lead.
@@ -71,7 +79,51 @@ def meta_url(path: str, ensemble: bool = False) -> str:
 
 
 class LimitRefused(RuntimeError):
-    """Open-Meteo refused the call because the address hit its limit."""
+    """No try succeeded. limit is True when the last try was a rate-limit
+    refusal (the address hit its limit), False for network failures."""
+
+    def __init__(self, msg: str, limit: bool = False):
+        super().__init__(msg)
+        self.limit = limit
+
+
+def is_limit(e: BaseException) -> bool:
+    """True when e is a rate-limit refusal (not a network failure or an
+    answer such as "run not available")."""
+    return isinstance(e, LimitRefused) and e.limit
+
+
+USAGE_HEADERS = ("X-RateLimit-Cost", "X-RateLimit-Remaining", "X-RateLimit-Limit", "X-RateLimit-Window")
+usage: list[dict] = []  # one entry per counted call in this process
+echo = print
+
+
+def _what(url: str) -> str:
+    """Host, path and model of a call: nothing else from the query string."""
+    u = urllib.parse.urlparse(url)
+    models = urllib.parse.parse_qs(u.query).get("models", [""])[0]
+    return f"{u.hostname}{u.path}" + (f" {models}" if models else "")
+
+
+def note_usage(url: str, headers) -> dict | None:
+    """Record and print Open-Meteo's usage headers for one call, if present."""
+    if headers is None or headers.get("X-RateLimit-Cost") is None:
+        return None
+    rec = {"call": _what(url), **{h[len("X-RateLimit-"):].lower(): headers.get(h) for h in USAGE_HEADERS}}
+    usage.append(rec)
+    echo(f"  open-meteo  cost {rec['cost']}  remaining {rec['remaining']} of {rec['limit']}"
+         f" per {rec['window']} s  {rec['call']}")
+    return rec
+
+
+def usage_summary() -> str:
+    """One line: counted calls, total weighted cost, lowest Remaining seen."""
+    if not usage:
+        return "Open-Meteo: no counted calls"
+    cost = sum(float(u["cost"] or 0) for u in usage)
+    low = min(usage, key=lambda u: float(u["remaining"] or 0))
+    return (f"Open-Meteo: {len(usage)} counted calls, weighted cost {cost:.1f}, lowest remaining "
+            f"{low['remaining']} of {low['limit']} per {low['window']} s")
 
 
 RETRY_AFTER_MAX_S = 120  # a refusal that asks for a longer wait is not retried
@@ -95,13 +147,15 @@ def get_json(url: str, tries: int = 8, log=print, sleep=time.sleep) -> dict:
     log(kind, detail) is called for every failed try; kind is "limit" (rate
     limit refusal) or "network" (no usable answer: reset, timeout, bad HTTP).
     """
-    last = None
+    last, limited = None, False
     for k in range(tries):
         retry_after = None
         try:
             with urllib.request.urlopen(url, timeout=120) as r:
+                note_usage(url, getattr(r, "headers", None))
                 data = json.load(r)
         except urllib.error.HTTPError as e:
+            note_usage(url, e.headers)
             retry_after = e.headers.get("Retry-After") if e.headers else None
             try:
                 data = json.loads(e.read())
@@ -112,20 +166,21 @@ def get_json(url: str, tries: int = 8, log=print, sleep=time.sleep) -> dict:
             last = e
             data = None
         if data is not None and data.get("error") and "limit" in str(data.get("reason", "")).lower():
-            last = data.get("reason")
+            last, limited = data.get("reason"), True
             log("limit", f"try {k + 1}/{tries}: {last}")
             if _wait_too_long(str(last), retry_after):
                 break  # retrying for a minute or two cannot help
             sleep(4 + 2 * k)
             continue
         if data is None:
+            limited = False
             log("network", f"try {k + 1}/{tries}: {last}")
             sleep(3 + 2 * k)
             continue
         if data.get("error"):
             raise RuntimeError(f"open-meteo error: {data.get('reason')}")
         return data
-    raise LimitRefused(str(last))
+    raise LimitRefused(str(last), limit=limited)
 
 
 def previous_runs_url(lat, lon, elevation, model, start, end, leads=range(1, 8),

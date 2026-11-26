@@ -22,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
+from wxc import openmeteo as om  # noqa: E402
 from wxc.score import already_scored, issue_date_now, score  # noqa: E402
 
 STORE = ROOT / "data" / "store"
@@ -48,7 +49,8 @@ def main() -> int:
         print(f"{place['name']}:")
         issue = args.issue or issue_date_now()
         if args.if_needed and already_scored(STORE, place["id"], issue):
-            print(f"  already scored for {issue} with station data through the day before; skipped")
+            print(f"  already scored for {issue} with station data through the day before"
+                  " and every download fresh; skipped")
             continue
         try:
             r = score(place, cfg, STORE, issue=issue)
@@ -66,6 +68,10 @@ def main() -> int:
             print(f"  day 1 {var}: consensus recent miss {d1['consensus_mae']} deg C; weights "
                   + ", ".join(f"{m} {w:.0%}" for w, m in ws))
         print(f"  live pulls scored: {len(r['live'])} rows")
+        for x in s.get("downloads_stale") or []:
+            print(f"  not refreshed ({x['why']}): {x['download']} {x['source']}"
+                  + (f" {x['day']}" if x.get("day") else "") + (f", used {x['used']}" if x.get("used") else ""))
+    print(om.usage_summary())
     return 0 if ok else 1
 
 

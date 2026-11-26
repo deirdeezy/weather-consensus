@@ -11,6 +11,7 @@ set -uo pipefail
 start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 summary="${GITHUB_STEP_SUMMARY:-/dev/stdout}"
 py() { uv run --no-sync python "$@"; }
+source backend/ci/runner_info.sh  # cloud and region, also added to refusal lines
 
 if ! py backend/scripts/refresh.py; then
   echo "::warning::Some sources were not pulled this hour (see refusals below)"

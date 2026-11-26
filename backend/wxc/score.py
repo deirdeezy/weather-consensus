@@ -13,7 +13,12 @@
    data/store/<place>/live_scores.csv (the shadow-run record).
 
 If a download fails, the last saved copy is used and the failure is logged in
-data/store/refusals.jsonl.
+data/store/refusals.jsonl. Every download that could not be refreshed is also
+listed in scores.json as downloads_stale (why "limit" for an Open-Meteo
+rate-limit refusal, "error" otherwise), so a later nightly run rescores
+(already_scored) and the workflow can retry on a fresh runner and fail the
+run if limit refusals still left data missing (limit_losses). Single Runs
+Open-Meteo answered it does not have are expected gaps, not stale.
 """
 from __future__ import annotations
 
@@ -56,14 +61,24 @@ def _num(x):
 
 # --- downloads ---------------------------------------------------------------
 
-def _fetch_or_stale(name: str, path: Path, fetch, log) -> dict | None:
-    """Download and save; on failure, fall back to the last saved copy."""
+def _why(e: BaseException) -> str:
+    return "limit" if om.is_limit(e) else "error"
+
+
+def _fetch_or_stale(name: str, path: Path, fetch, log, stale: list | None = None,
+                    download: str = "") -> dict | None:
+    """Download and save; on failure, fall back to the last saved copy.
+    A failure is appended to stale (scores.json downloads_stale)."""
     try:
         payload = fetch()
     except Exception as e:
         log(name, "error", e)
+        rec = {"download": download or name, "source": name, "why": _why(e), "used": None}
+        if stale is not None:
+            stale.append(rec)
         if path.exists():
-            log(name, "used_stale", f"using saved copy from {iso(int(path.stat().st_mtime))}")
+            rec["used"] = f"saved copy from {iso(int(path.stat().st_mtime))}"
+            log(name, "used_stale", f"using {rec['used']}")
             return json.loads(path.read_text())
         return None
     _write_json(path, payload)
@@ -71,33 +86,38 @@ def _fetch_or_stale(name: str, path: Path, fetch, log) -> dict | None:
 
 
 def fetch_history(place: dict, cfg: dict, store: Path, issue: dt.date,
-                  get=om.get_json, fetch_obs=eccc.fetch_daily, log=None) -> tuple:
+                  get=om.get_json, fetch_obs=eccc.fetch_daily, log=None,
+                  stale: list | None = None) -> tuple:
     """Station observations and Previous Runs for every deterministic source."""
     hist = store / place["id"] / "history"
     start = (issue - dt.timedelta(days=HISTORY_DAYS)).isoformat()
     end = (issue - dt.timedelta(days=1)).isoformat()
     cid = place["truth"]["climate_id"]
     obs = _fetch_or_stale(f"eccc_{cid}", hist / f"eccc_daily_{cid}.json",
-                          lambda: fetch_obs(cid, start, issue.isoformat()), log)
+                          lambda: fetch_obs(cid, start, issue.isoformat()), log, stale, "station")
     prev = {}
     for m in cfg["deterministic_pool"]:
         url = om.previous_runs_url(place["lat"], place["lon"], place["elevation_m"], api_id(cfg, m),
                                    start, end, leads=LEADS)
         p = _fetch_or_stale(m, hist / f"prev_{m}.json",
-                            lambda: get(url, log=lambda k, d, m=m: log(m, k, d)), log)
+                            lambda: get(url, log=lambda k, d, m=m: log(m, k, d)), log, stale,
+                            "previous_runs")
         if p is not None:
             prev[m] = p
     return obs, prev
 
 
 def fetch_long(place: dict, cfg: dict, store: Path, issue: dt.date, get=om.get_json,
-               fetch_normal=hz.fetch_normal_records, log=None, echo=print) -> tuple:
+               fetch_normal=hz.fetch_normal_records, log=None, echo=print,
+               stale: list | None = None) -> tuple:
     """Single Runs for days 8 to 14 (only runs not yet saved) and the normal."""
     first = max(hz.SINGLE_RUNS_FROM, issue - dt.timedelta(days=HISTORY_DAYS))
     days = [first + dt.timedelta(days=i) for i in range((issue - first).days)]
-    hz.fetch_single_runs(place, cfg["deterministic_pool"], days, store, get=get, log=log,
+    got = hz.fetch_single_runs(place, cfg["deterministic_pool"], days, store, get=get, log=log,
                          echo=lambda *a: None,
                          api_ids={m: api_id(cfg, m) for m in cfg["deterministic_pool"]})
+    if stale is not None:
+        stale += [{"download": "single_run", "used": None, **x} for x in got.get("lost", [])]
     long = {m: hz.single_runs_daily(store, place["id"], m, leads=LONG_LEADS)
             for m in cfg["deterministic_pool"]}
     long = {m: d for m, d in long.items() if d}
@@ -105,7 +125,7 @@ def fetch_long(place: dict, cfg: dict, store: Path, issue: dt.date, get=om.get_j
     normal = None
     if cid:
         path = store / place["id"] / "history" / f"normal_records_{cid}.json"
-        recs = _fetch_or_stale(f"normal_{cid}", path, lambda: fetch_normal(cid), log) \
+        recs = _fetch_or_stale(f"normal_{cid}", path, lambda: fetch_normal(cid), log, stale, "normal") \
             if not path.exists() else json.loads(path.read_text())
         if recs:
             normal = hz.daily_normal(recs)
@@ -236,7 +256,21 @@ def already_scored(store: Path, place_id: str, issue: dt.date) -> bool:
         return False
     s = json.loads(p.read_text())
     done = (issue - dt.timedelta(days=1)).isoformat()
-    return s.get("issue_date") == issue.isoformat() and (s.get("obs_through") or "") >= done
+    return (s.get("issue_date") == issue.isoformat() and (s.get("obs_through") or "") >= done
+            and not s.get("downloads_stale"))
+
+
+def limit_losses(store: Path, place_id: str, issue: dt.date) -> list[dict]:
+    """Downloads that today's scoring could not refresh because Open-Meteo
+    refused them for a rate limit. Empty if the place has no scores for this
+    issue date (not scored today) or nothing was refused."""
+    p = store / place_id / "scores.json"
+    if not p.exists():
+        return []
+    s = json.loads(p.read_text())
+    if s.get("issue_date") != issue.isoformat():
+        return []
+    return [x for x in s.get("downloads_stale") or [] if x.get("why") == "limit"]
 
 
 def score(place: dict, cfg: dict, store: Path, issue: dt.date | None = None,
@@ -245,14 +279,15 @@ def score(place: dict, cfg: dict, store: Path, issue: dt.date | None = None,
     issue = issue or issue_date_now()
     pid = place["id"]
     log = refusal_logger(store, pid, echo)
-    obs_payload, prev = fetch_history(place, cfg, store, issue, get, fetch_obs, log)
+    stale: list[dict] = []
+    obs_payload, prev = fetch_history(place, cfg, store, issue, get, fetch_obs, log, stale)
     if obs_payload is None:
         raise RuntimeError("no station observations, scores not updated")
     obs = eccc.parse_daily(obs_payload)
-    long, normal = fetch_long(place, cfg, store, issue, get, fetch_normal, log, echo)
+    long, normal = fetch_long(place, cfg, store, issue, get, fetch_normal, log, echo, stale)
     scores = build_scores(obs, prev, cfg["deterministic_pool"], issue, long, normal)
     scores.update(place=pid, computed_at=iso(int(time.time())),
-                  truth=place["truth"], credit=[om.CREDIT, eccc.CREDIT])
+                  truth=place["truth"], credit=[om.CREDIT, eccc.CREDIT], downloads_stale=stale)
     _write_json(store / pid / "scores.json", scores)
     live = live_scores(store, pid, obs)
     live.to_csv(store / pid / "live_scores.csv", index=False)

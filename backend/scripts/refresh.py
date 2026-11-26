@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
+from wxc import openmeteo as om  # noqa: E402
 from wxc.refresh import refresh  # noqa: E402
 
 STORE = ROOT / "data" / "store"
@@ -49,6 +50,7 @@ def main() -> int:
             print(f"  pulled {len(r['pulled'])}, failed {len(r['failed'])}"
                   + (f": {', '.join(r['failed'])}" if r["failed"] else ""))
         failed |= bool(r["failed"])
+    print(om.usage_summary())
     return 1 if failed else 0
 
 

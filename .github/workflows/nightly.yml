@@ -1,6 +1,10 @@
 # Nightly: score against the station (ECCC), update weights, publish, save
 # data, deploy Pages. Runs twice; the second run only rescores if ECCC had not
-# posted yesterday's values by the first. Design and sources: docs/HOSTING.md.
+# posted yesterday's values by the first, or a download failed. If Open-Meteo
+# refused calls for a rate limit (its free limits count per internet address,
+# and runner addresses are shared), a retry job reruns on a fresh runner; if
+# data is still missing after that, the run fails so GitHub emails the owner.
+# Design and sources: docs/HOSTING.md.
 name: Nightly scoring
 
 on:
@@ -27,6 +31,8 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: write  # push the data branch
+    outputs:
+      om_refused: ${{ steps.nightly.outputs.om_refused }}  # from backend/scripts/missing.py
     steps:
       - name: Check out main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -61,6 +67,7 @@ jobs:
         run: uv sync --frozen --no-dev
 
       - name: Score, publish, save data
+        id: nightly
         env:
           IF_NEEDED: ${{ github.event_name == 'schedule' || !inputs.force }}
         run: |
@@ -82,8 +89,84 @@ jobs:
           path: public
           retention-days: 1
 
-  deploy:
+  # Open-Meteo refused calls for a rate limit and data is missing: run the
+  # same job again on a fresh runner (each job is a new VM, often in another
+  # cloud region, so most likely another internet address). It always
+  # rescores, because scores.json lists the stale downloads (already_scored).
+  # If rate-limit refusals still leave data missing, this job fails, which
+  # fails the run and GitHub emails the owner. Expected gaps (Single Runs
+  # Open-Meteo does not have) never count.
+  retry:
     needs: score
+    if: needs.score.outputs.om_refused == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write  # push the data branch
+    outputs:
+      site: ${{ steps.site.outputs.uploaded }}
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out the data branch into data/store
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: data
+          path: data/store
+          fetch-depth: 1
+
+      - name: Restore the download cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/store/*/history/prev_*.json
+            data/store/*/history/eccc_daily_*.json
+          key: score-downloads-${{ github.run_id }}-retry
+          restore-keys: score-downloads-
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d  # v10.4.0
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --frozen --no-dev
+
+      - name: Score again on this runner, publish, save data
+        env:
+          IF_NEEDED: "1"  # rescores: the first job's scores.json lists stale downloads
+        run: bash backend/ci/nightly.sh
+
+      - name: Save the download cache
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/store/*/history/prev_*.json
+            data/store/*/history/eccc_daily_*.json
+          key: score-downloads-${{ github.run_id }}-retry
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9  # v5.0.0
+        with:
+          name: github-pages-retry
+          path: public
+          retention-days: 1
+
+      - name: Note the upload for the deploy job
+        id: site
+        run: echo "uploaded=true" >> "$GITHUB_OUTPUT"
+
+      - name: Fail if rate-limit refusals still left data missing
+        run: uv run --no-sync python backend/scripts/missing.py --fail-on-limit
+
+  # Deploys the retry job's site if it uploaded one, else the first job's.
+  deploy:
+    needs: [score, retry]
+    if: ${{ !cancelled() && needs.score.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -96,6 +179,8 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346  # v5.0.1
+        with:
+          artifact_name: ${{ needs.retry.outputs.site == 'true' && 'github-pages-retry' || 'github-pages' }}
 
   # GitHub turns off scheduled workflows in a public repo after 60 days with
   # no repository activity. Re-enable both every night (no-op while enabled).

@@ -2,8 +2,10 @@
 # Run the workflow job scripts locally, as Actions would, against a stand-in
 # for GitHub (a bare Git repo in a scratch folder). Uses live data: it calls
 # Open-Meteo and ECCC like a real run (a few dozen calls).
+# Open-Meteo refusals are simulated locally (backend/ci/fake_open_meteo):
+# daily-limit refusals, the retry, and expected Single Runs gaps.
 # What it cannot test: GitHub's scheduler, the Actions cache, permissions,
-# Pages deployment, runner IP limits. Those are checked on the first real run.
+# Pages deployment, real runner IP limits. Those are checked on the first real run.
 # Usage: bash backend/ci/local_test.sh <scratch-folder> <seeded-data-branch-folder>
 set -euo pipefail
 work="${1:?scratch folder}"
@@ -62,6 +64,48 @@ check "scored again and pushed" \
   "git --git-dir=\"$work/origin.git\" log -1 --format=%s data | grep -q 'Nightly scoring'"
 check "kitimat.json still matches the schema" \
   "uv run -q --with jsonschema python -c 'import json,jsonschema; jsonschema.validate(json.load(open(\"public/kitimat.json\")), json.load(open(\"docs/place-v1.schema.json\")))'"
+
+step "Nightly, Open-Meteo refuses every call for the daily limit (as on 25 Nov 2026, 19:37 UTC)"
+# backend/ci/fake_open_meteo answers Open-Meteo calls locally; nothing is sent.
+fake="$root/backend/ci/fake_open_meteo"
+stale_kinds() { uv run --no-sync python -c 'import json; s=json.load(open("data/store/kitimat/scores.json")); print(sorted({x["why"] for x in s.get("downloads_stale") or []}))'; }
+: > "$work/out1"
+if GITHUB_OUTPUT="$work/out1" WXC_FAKE_OPEN_METEO=daily PYTHONPATH="$fake" IF_NEEDED=0 \
+   bash backend/ci/nightly.sh > "$work/refused.log" 2>&1; then rc=0; else rc=$?; fi
+tail -25 "$work/refused.log"
+check "first job still succeeds (saved copies used, run not failed yet)" "[ $rc -eq 0 ]"
+check "first job reports om_refused=true" "grep -qx 'om_refused=true' \"$work/out1\""
+check "scores.json lists the downloads refused for a limit" "[ \"\$(stale_kinds)\" = \"['limit']\" ]"
+
+step "Retry job, still refused (another refused address): rescores and fails the run"
+: > "$work/out2"
+GITHUB_OUTPUT="$work/out2" WXC_FAKE_OPEN_METEO=daily PYTHONPATH="$fake" IF_NEEDED=1 \
+  bash backend/ci/nightly.sh > "$work/retry1.log" 2>&1 || true
+check "an --if-needed run no longer skips (the 23:49 UTC case)" "! grep -q 'skipped' \"$work/retry1.log\""
+if uv run --no-sync python backend/scripts/missing.py --fail-on-limit; then rc=0; else rc=$?; fi
+check "missing.py --fail-on-limit fails the retry job" "[ $rc -eq 1 ]"
+
+step "Retry job on a fresh address: everything comes back, the run passes"
+: > "$work/out3"
+GITHUB_OUTPUT="$work/out3" IF_NEEDED=1 bash backend/ci/nightly.sh > "$work/retry2.log" 2>&1 || true
+tail -12 "$work/retry2.log"
+check "rescored, not skipped" "! grep -q 'skipped' \"$work/retry2.log\""
+check "no stale downloads left" "[ \"\$(stale_kinds)\" = '[]' ]"
+check "om_refused=false" "grep -qx 'om_refused=false' \"$work/out3\""
+check "missing.py --fail-on-limit passes" "uv run --no-sync python backend/scripts/missing.py --fail-on-limit >/dev/null"
+IF_NEEDED=1 bash backend/ci/nightly.sh > "$work/again.log" 2>&1 || true
+check "the next --if-needed run skips again" "grep -q 'every download fresh; skipped' \"$work/again.log\""
+
+step "Expected gaps: Single Runs Open-Meteo does not have do not fail the run"
+yday="$(uv run --no-sync python -c 'import datetime as d,sys; sys.path.insert(0,"backend"); from wxc.score import issue_date_now; print(issue_date_now()-d.timedelta(days=1))')"
+rm -f data/store/kitimat/single/*/"$yday".json
+: > "$work/out4"
+GITHUB_OUTPUT="$work/out4" WXC_FAKE_OPEN_METEO=gone-runs PYTHONPATH="$fake" IF_NEEDED=0 \
+  bash backend/ci/nightly.sh > "$work/gaps.log" 2>&1 || true
+check "gaps logged as single_run" "grep -q 'single_run: $yday' \"$work/gaps.log\""
+check "no stale downloads" "[ \"\$(stale_kinds)\" = '[]' ]"
+check "om_refused=false" "grep -qx 'om_refused=false' \"$work/out4\""
+check "missing.py --fail-on-limit passes" "uv run --no-sync python backend/scripts/missing.py --fail-on-limit >/dev/null"
 
 step "Push race, on a throwaway branch: another writer moves it first"
 git --git-dir="$work/origin.git" branch race data

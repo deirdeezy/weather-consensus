@@ -52,6 +52,17 @@ GONE_AFTER_DAYS = 2  # a run Open-Meteo still lacks after this is not coming
 GONE_PHRASES = ("not available", "No data is available")
 
 
+def utc_today() -> dt.date:
+    """Today in UTC (the runners and Open-Meteo's run dates are UTC)."""
+    return dt.datetime.now(dt.timezone.utc).date()
+
+
+def expected_gap(e: BaseException) -> bool:
+    """True when Open-Meteo answered that it has no such run: an expected gap,
+    not a refusal. Rate-limit refusals and network failures are not gaps."""
+    return not isinstance(e, om.LimitRefused) and any(s in str(e) for s in GONE_PHRASES)
+
+
 def single_run_path(store: Path, place_id: str, model: str, day: dt.date) -> Path:
     return store / place_id / "single" / model / f"{day.isoformat()}.json"
 
@@ -60,8 +71,12 @@ def fetch_single_runs(place: dict, models: list[str], days: list[dt.date], store
                       get=om.get_json, log=None, sleep=time.sleep, echo=print,
                       api_ids: dict | None = None) -> dict:
     """Download every missing 00 UTC run. Saved runs are never fetched again.
-    Files are named by the pilot key; api_ids gives the id sent to Open-Meteo."""
+    Files are named by the pilot key; api_ids gives the id sent to Open-Meteo.
+    Returns counts plus "lost": runs not fetched for a reason other than an
+    expected gap (rate limit, network), each {"source", "day", "why"} with why
+    "limit" or "error"; they are asked for again next night."""
     done = failed = 0
+    lost = []
     for m in models:
         for d in days:
             path = single_run_path(store, place["id"], m, d)
@@ -77,8 +92,11 @@ def fetch_single_runs(place: dict, models: list[str], days: list[dt.date], store
                 if log:
                     log(m, "single_run", f"{d}: {e}")
                 failed += 1
-                old = (dt.date.today() - d).days > GONE_AFTER_DAYS
-                if old and any(s in str(e) for s in GONE_PHRASES):
+                if not expected_gap(e):
+                    lost.append({"source": m, "day": d.isoformat(),
+                                 "why": "limit" if om.is_limit(e) else "error"})
+                    continue
+                if (utc_today() - d).days > GONE_AFTER_DAYS:
                     gone.parent.mkdir(parents=True, exist_ok=True)
                     gone.write_text(str(e)[:300])  # Open-Meteo has no such run: stop asking
                 continue
@@ -86,7 +104,7 @@ def fetch_single_runs(place: dict, models: list[str], days: list[dt.date], store
             done += 1
             sleep(PACE_S)
         echo(f"  single runs {m}: done")
-    return {"fetched": done, "failed": failed}
+    return {"fetched": done, "failed": failed, "lost": lost}
 
 
 def single_runs_daily(store: Path, place_id: str, model: str,

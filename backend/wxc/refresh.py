@@ -143,12 +143,17 @@ def load_state(store: Path, place_id: str) -> dict:
 
 
 def refusal_logger(store: Path, place_id: str, echo=print):
-    """log(source, kind, detail): append one line to data/store/refusals.jsonl."""
+    """log(source, kind, detail): append one line to data/store/refusals.jsonl.
+    With WXC_RUNNER set (backend/ci/runner_info.sh: the runner's cloud and
+    region on GitHub Actions), each line also names the runner."""
     refusals = store / "refusals.jsonl"
+    runner = os.environ.get("WXC_RUNNER", "")
 
     def log(source: str, kind: str, detail) -> None:
         rec = {"time": iso(int(time.time())), "place": place_id, "source": source,
                "kind": kind, "detail": str(detail)[:300]}
+        if runner:
+            rec["runner"] = runner
         refusals.parent.mkdir(parents=True, exist_ok=True)
         with refusals.open("a") as f:
             f.write(json.dumps(rec) + "\n")
