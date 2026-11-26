@@ -18,18 +18,46 @@ Everything runs on GitHub for $0: a public repo, GitHub Actions for the jobs, a 
 ## Jobs
 | Workflow | When (UTC) | Steps | Permissions |
 |---|---|---|---|
-| `refresh.yml` | minute 17 every hour | `refresh.py`, `obs.py`, `publish.py`, save `data`, deploy Pages | job 1: `contents: write`; deploy: `pages: write`, `id-token: write` |
-| `nightly.yml` | 09:47 and 15:47 | `score.py --if-needed`, `publish.py`, save `data`, deploy Pages; re-enable both workflows | job 1: `contents: write`; deploy: `pages: write`, `id-token: write`; keepalive: `actions: write` |
+| `refresh.yml` | minute 10 every hour (Cloudflare Worker); GitHub cron minute 17 as backup | `refresh.py`, `obs.py`, `publish.py`, save `data`, deploy Pages | job 1: `contents: write`; deploy: `pages: write`, `id-token: write` |
+| `nightly.yml` | 09:52 and 15:52 (Cloudflare Worker); GitHub cron 09:47 and 15:47 as backup | `score.py --if-needed`, `publish.py`, save `data`, deploy Pages; re-enable both workflows | job 1: `contents: write`; deploy: `pages: write`, `id-token: write`; keepalive: `actions: write` |
 
 - Both also run by hand (Actions tab, Run workflow). Nightly has a "force" box to rescore.
+- What starts them: next section.
 - Job bodies are scripts (`backend/ci/hourly.sh`, `nightly.sh`, `save_data.sh`) so they run the same locally.
 - Default token permissions are none (`permissions: {}`); each job asks only for what it needs. The checkout of `main` keeps no credentials.
 - Actions are pinned to commit SHAs (checkout v7.0.1, cache v6.1.0, setup-uv v10.4.0, upload-pages-artifact v5.0.0, deploy-pages v5.0.1; latest releases on 25 Nov 2026).
 
+### What starts the runs
+GitHub's own schedule is best effort ("can be delayed during periods of high loads"; queued jobs "may be dropped"). On its first day it fired 1 of 19 hourly slots (04:17 to 22:17 UTC, 25 Nov 2026; the one run was 9 minutes late) and one nightly run at 19:37 UTC, 3 h 50 min or more after its slot (Actions API, `event: schedule`). Manual dispatches started within a second. So the runs are started from outside, and GitHub's cron stays as a backup.
+
+**Primary: a Cloudflare Worker cron (Workers Free plan), set up 26 Nov 2026.**
+- Cron every 5 minutes. Slots: `refresh.yml` at minute 10 of every hour; `nightly.yml` at 09:52 and 15:52 UTC.
+- For each slot it asks the Actions API whether a run of that workflow has started since 5 minutes before the slot (any event: schedule, dispatch, manual). If none has, it sends `workflow_dispatch` on `main`. It keeps checking for up to 45 minutes after the slot, so a failed dispatch is retried and a late GitHub cron run counts.
+- It only starts runs. GitHub Actions is still the only writer of the `data` branch and Pages.
+- Token: a fine-grained personal access token, this repository only, repository permission Actions: read and write (Metadata: read is added by GitHub). Nothing else. Per GitHub's permission table, that covers listing runs and dispatching workflows; it cannot push code, read secrets or change settings.
+- Stored only as the Worker's encrypted secret `GH_TOKEN` (hidden in the Cloudflare dashboard and Wrangler after it is set). Never in this repo, a workflow, or a GitHub secret.
+- The Worker has no public address: its `workers.dev` URL is turned off, so it runs only from its cron.
+- Missed runs: no failure alert yet. Staleness shows in the app ("Updated X hours ago", the 6-hour `stale` flag, the Now card's age) and on the Actions tab. The Worker's last 100 cron runs are listed in the Cloudflare dashboard (Workers & Pages, the Worker, Settings, Trigger Events).
+
+**Backup: GitHub cron.** The `schedule` lines in both workflows are unchanged (minute 17; 09:47 and 15:47).
+
+**Double runs are harmless.** When the cron and the Worker both start a run, the shared queue (below) runs them one after the other. A second hourly run pulls nothing new (`refresh.py` pulls only sources with a new run), reads the station again (2 requests), writes the same file and saves nothing if nothing changed; it costs about 1 runner minute. A second nightly run skips places already scored (`score.py --if-needed`; a dispatch without inputs has `force` false).
+
+Sources (checked 25 and 26 Nov 2026):
+- https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
+- https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event
+- https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens
+- https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens
+- https://developers.cloudflare.com/workers/configuration/cron-triggers/
+- https://developers.cloudflare.com/workers/platform/limits/ (Free: 100,000 requests a day, 5 cron triggers an account)
+- https://developers.cloudflare.com/workers/configuration/secrets/
+
 ### Station observations (the "now" block)
-- `obs.py` makes one call an hour per place with an approved station (Kitimat only): ECCC's real-time SWOB on the MSC GeoMet OGC API (`https://api.weather.gc.ca/collections/swob-realtime/items`), hourly records since 06 UTC, only the fields we use (about 6 KB). Raw answers are not kept: only the processed block in `<place>/now.json`.
-- MSC usage policy (https://eccc-msc.github.io/open-data/usage-policy/readme_en, checked 25 Nov 2026): a meaningful User-Agent (ours names the project and this repo, nothing else), only the data you use, no no-cache headers, contact MSC above 86,400 requests a day. We make 24.
-- A refused or empty answer is logged (`eccc_swob`) and the last block stays; the app ages it by `observed_at`. The app still reads only GitHub Pages.
+- `obs.py` makes two calls an hour per place with an approved station (Kitimat only), on ECCC's real-time SWOB on the MSC GeoMet OGC API (`https://api.weather.gc.ca/collections/swob-realtime/items`): the hourly records since 06 UTC (about 6 KB) and the newest minute record (about 4.5 KB). Only the fields we use. Raw answers are not kept: only the processed block in `<place>/now.json`.
+- Current temp, dew point, humidity, wind and gust come from whichever record is newer, the minute or the hourly one; a minute value is used only if its quality flag is there and passed. Minute records have no flag on dew point, wind or gust, so those come from the hourly record. Pressure, tendency and the so-far values always come from hourly records. `values_from` in the block says which record each value came from (`docs/JSON_SCHEMA.md`).
+- Posting delay: ECCC documents none (records can be fetched "as soon as they become available"). Datamart file times for Kitimat Forest Ave on 25 Nov 2026: hourly records posted 0 to 6 minutes after the hour (22 records); minute records median 0, 95th percentile 3 minutes. The 22:00 UTC hourly record never came: the station sent nothing from 21:25 to 22:04. So minute 10 is late enough, and the minute record keeps "now" within minutes of the run.
+- MSC usage policy (https://eccc-msc.github.io/open-data/usage-policy/readme_en, checked 25 Nov 2026): a meaningful User-Agent (ours names the project and this repo, nothing else), only the data you use, no no-cache headers, contact MSC above 86,400 requests a day. We make 48 (two an hour), more if a run is doubled.
+- A refused or empty hourly answer is logged (`eccc_swob`) and the last block stays; the app ages it by `observed_at`. A refused minute answer is logged ("minute record") and the block is built from hourly records alone. The app still reads only GitHub Pages.
 
 ### Never two runs at once
 Both workflows share one concurrency group (`data-branch`) with `queue: max`: a run waits for the one in progress; up to 100 can wait; none is cancelled. GitHub's default (`queue: single`) would cancel a waiting run when another queues. `save_data.sh` also rebases and retries a refused push (tested locally).
@@ -44,7 +72,7 @@ ECCC does not document when a day's values appear in the climate-daily API. On 2
 - Shadow-run count: `uv run python backend/scripts/refusals.py --since <time>` on a checkout of `data`.
 
 ### Stale data
-Unchanged from Stage 1: `kitimat.json` sets `stale: true` after 6 hours without a new pull, and the app also checks the times itself (`docs/JSON_SCHEMA.md`). Second route (home Mac or Google Cloud VM) is a plan, not built: switch only if the shadow run shows refusals above about 1 in 20.
+Unchanged from Stage 1: `kitimat.json` sets `stale: true` after 6 hours without a new pull, and the app also checks the times itself (`docs/JSON_SCHEMA.md`). There is no failure alert for missed runs yet (see "What starts the runs"). Second route (home Mac or Google Cloud VM) is a plan, not built: switch only if the shadow run shows refusals above about 1 in 20.
 
 ## Limits (GitHub docs, checked 25 Nov 2026)
 | Limit | Value | Our use |
@@ -56,7 +84,7 @@ Unchanged from Stage 1: `kitimat.json` sets `stale: true` after 6 hours without 
 | Actions cache | 10 GB per repo; entries unused for 7 days are removed | about 1 to 2 MB a night |
 | `GITHUB_TOKEN` API | 1,000 requests an hour per repo | 2 a night |
 | Pages | site under 1 GB; 100 GB a month bandwidth (soft); 10 builds an hour soft limit does not apply to custom Actions workflows | one 6.5 KB file, about 26 deploys a day |
-| Schedule | can be delayed at high load, busiest at the top of the hour; runs on the default branch only | minute 17 and 47 |
+| Schedule | can be delayed at high load, busiest at the top of the hour; queued jobs may be dropped; runs on the default branch only | backup only (minute 17 and 47); runs started by `workflow_dispatch` |
 
 Sources:
 - https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github
@@ -89,7 +117,9 @@ Estimate: **about 350 KiB a day, 10 to 15 MB a month, 120 to 180 MB a year** (ab
 
 ## Open-Meteo calls from Actions
 - Hourly: model-update metadata (free) plus about 55 pulls a day; nightly: 9 Previous Runs calls (about 20 calls each by Open-Meteo's weighting) and 9 Single Runs. Upper bound about 350 weighted calls a day, counting every ensemble member as a variable: under 4% of the 10,000 daily limit.
-- GitHub runners share internet addresses with other users, and Open-Meteo counts limits per address. That is the main risk; refusals are logged and counted in the shadow run.
+- GitHub runners share internet addresses with other users, and Open-Meteo counts limits per address ("Usage is generally shared by requests from the same public IP address", https://github.com/open-meteo/open-meteo/blob/main/docs/api-rate-limiting.md). That is the main risk; refusals are logged and counted in the shadow run.
+- It happened on 25 Nov 2026: the 19:37 UTC nightly run got "Daily API request limit exceeded" for all 18 Open-Meteo calls, from a runner whose address others had used up. Scoring fell back to the saved copies (Previous Runs saved at 04:07 UTC); the 24 Nov Single Runs it could not get are fetched on a later night. The run took 27 min 48 s instead of under a minute because each call was retried 8 times with 4 to 18 s waits (88 s a call). Since 26 Nov, `openmeteo.get_json` gives up at once on the hourly and daily limits (or a `Retry-After` over 2 minutes) and retries only the minutely one; a refused call now costs one request.
+- If refusals stay common, the second route (`docs/BUILD_PLAN.md`) is the fix. Open-Meteo's note above also says Cloudflare Worker traffic "may be grouped by Worker identity instead" of by address; not used, and the Worker does not fetch weather data.
 
 ## Test locally
 `backend/ci/local_test.sh` runs the job scripts against a stand-in for GitHub (a bare repo in a scratch folder), with live data:
