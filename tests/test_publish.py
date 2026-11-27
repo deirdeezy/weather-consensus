@@ -297,3 +297,20 @@ def test_score_age_is_published(tmp_path):
     assert doc["scores_computed_at"] == "2026-11-25T09:52:10Z"
     validate(doc, strict(SCHEMA))
     assert pb.build(PLACE, CFG, scores(), _pulls(), None, NOW)["scores_computed_at"] is None  # older scores.json
+
+
+def test_shadow_collection_files_do_not_change_the_published_file(tmp_path):
+    """Extra hourly variables and the station archive (27 Nov 2026) are saved
+    beside the inputs; the place file must be byte for byte the same."""
+    _, plain = run_publish(tmp_path / "plain")
+    store = make_store(tmp_path / "shadow")
+    extra = {"source": "steady", "kind": "extra_hourly", "fetched_at": pb.iso(NOW - 3600),
+             "response": {"hourly": {"time": ["2026-11-25T00:00"], "temperature_2m": [99.0],
+                                     "wind_gusts_10m": [99.0]}}}
+    _write_json(store / PLACE["id"] / "hourly" / "2026-11-25" / "000000Z_steady.json", extra)
+    _write_json(store / PLACE["id"] / "swob" / "fields.json", {"const": {}, "sets": [[]]})
+    (store / PLACE["id"] / "swob" / "hourly-2026-11.jsonl").write_text(
+        '{"c":0,"t":"2026-11-25T00:00:00Z","v":{"air_temp":99.0}}\n')
+    out = tmp_path / "shadow" / "public"
+    pb.publish(PLACE, CFG, store, out, now=NOW, echo=lambda *a: None)
+    assert (out / f"{PLACE['id']}.json").read_text() == plain

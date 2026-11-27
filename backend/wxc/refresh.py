@@ -13,6 +13,15 @@
 
 If no metadata path of a source can be read, the source is pulled anyway once
 our last pull is FALLBACK_HOURS old, so a metadata outage cannot freeze us.
+
+Shadow collection (from 27 Nov 2026; owner decision after the hourly and
+conditions research): after each deterministic pull, one more call asks for
+the extra hourly variables (openmeteo.EXTRA_VARIABLES: wind, gusts, cloud
+total and layers, weather code, snowfall, humidity, visibility) for lead 0 to
+144 h of that run, saved under data/store/<place>/hourly/<YYYY-MM-DD>/. Not
+used by the blend, the scores or the place file: score.py and publish.py read
+only the <YYYY-MM-DD>/ folders and state.json, which this never touches. A
+failed extra call is logged (kind "extra") and never fails the source.
 """
 from __future__ import annotations
 
@@ -137,6 +146,41 @@ def save_raw(store: Path, place_id: str, s: Source, url: str, payload: dict,
     return path
 
 
+EXTRA_DIR = "hourly"  # data/store/<place>/hourly/<YYYY-MM-DD>/
+
+
+def save_extra(store: Path, place_id: str, s: Source, url: str, payload: dict,
+               runs: dict, run_unix: int, now: int) -> Path:
+    """Save one extra-variable pull next to (not among) the main pulls."""
+    t = dt.datetime.fromtimestamp(now, dt.timezone.utc)
+    path = store / place_id / EXTRA_DIR / t.strftime("%Y-%m-%d") / f"{t:%H%M%S}Z_{s.id}.json"
+    start, end = om.extra_window(run_unix)
+    _write_json(path, {
+        "source": s.id, "api_model": s.api_model, "kind": "extra_hourly", "place": place_id,
+        "fetched_at": iso(now), "run": iso(run_unix), "window": {"start": start, "end": end},
+        "variables": list(om.EXTRA_VARIABLES),
+        "runs": {p: iso(v) for p, v in runs.items()}, "url": url,
+        "credit": om.CREDIT, "response": payload,
+    })
+    return path
+
+
+def pull_extra(place: dict, s: Source, ready: dict, store: Path, get, log, now: int):
+    """The extra hourly variables for the run just pulled. Returns the saved
+    path, or None after logging why (never raises)."""
+    run_unix = max(ready.values()) if ready else now  # no metadata: from now
+    url = om.extra_url(place["lat"], place["lon"], place["elevation_m"], s.api_model, run_unix)
+    try:
+        payload = get(url, log=lambda k, d: log(s.id, "extra", f"{k}: {d}"))
+    except Exception as e:
+        log(s.id, "extra", f"gave up: {e}")
+        return None
+    if not isinstance(payload, dict) or not isinstance(payload.get("hourly"), dict):
+        log(s.id, "extra", "answer without hourly values")
+        return None
+    return save_extra(store, place["id"], s, url, payload, ready, run_unix, now)
+
+
 def load_state(store: Path, place_id: str) -> dict:
     p = store / place_id / "state.json"
     return json.loads(p.read_text()) if p.exists() else {}
@@ -174,7 +218,7 @@ def refresh(place: dict, cfg: dict, store: Path, now: int | None = None,
     state = load_state(store, pid)
     todo = decide(sources, meta, state, now)
     result = {"place": pid, "checked": len(sources), "new": [s.id for s, _ in todo],
-              "pulled": [], "failed": []}
+              "pulled": [], "failed": [], "extra": [], "extra_failed": []}
     if dry_run:
         return result
 
@@ -199,4 +243,9 @@ def refresh(place: dict, cfg: dict, store: Path, now: int | None = None,
         _write_json(store / pid / "state.json", state)  # save after each pull
         result["pulled"].append(s.id)
         echo(f"  pulled   {s.id} -> {path.relative_to(store)}")
+        if not s.ensemble:  # shadow collection: extra hourly variables
+            extra = pull_extra(place, s, ready, store, get, log, now)
+            result["extra" if extra else "extra_failed"].append(s.id)
+            if extra:
+                echo(f"  extra    {s.id} -> {extra.relative_to(store)}")
     return result

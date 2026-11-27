@@ -24,7 +24,7 @@ class FakeAPI:
     """Serves metadata from a dict and forecasts as {'hourly': ...}."""
 
     def __init__(self, meta, refuse=()):
-        self.meta, self.refuse, self.pulls = meta, set(refuse), []
+        self.meta, self.refuse, self.pulls, self.extra = meta, set(refuse), [], []
 
     def __call__(self, url, tries=8, log=print):
         if "/static/meta.json" in url:
@@ -33,6 +33,9 @@ class FakeAPI:
                 raise om.LimitRefused("metadata down")
             return self.meta[path]
         model = url.split("models=")[1].split("&")[0]
+        if "start_hour=" in url:  # shadow extra-variable call (tests/test_shadow_collection.py)
+            self.extra.append(model)
+            return {"hourly": {"time": [], "model": model}}
         self.pulls.append(model)
         if model in self.refuse:
             log("limit", "try 1/8: Minutely API request limit exceeded")

@@ -49,6 +49,8 @@ def main() -> int:
         if not args.dry_run:
             print(f"  pulled {len(r['pulled'])}, failed {len(r['failed'])}"
                   + (f": {', '.join(r['failed'])}" if r["failed"] else ""))
+            print(f"  extra hourly variables (shadow): saved {len(r['extra'])}, failed {len(r['extra_failed'])}"
+                  + (f": {', '.join(r['extra_failed'])}" if r["extra_failed"] else ""))
         failed |= bool(r["failed"])
     print(om.usage_summary())
     return 1 if failed else 0

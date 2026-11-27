@@ -2,7 +2,8 @@
 # Hourly job body (.github/workflows/refresh.yml). Run from the repo root with
 # the data branch checked out at data/store.
 # 1. refresh.py: pull the sources that posted a new run (refusals logged).
-# 2. obs.py: latest station observation for places with an approved station.
+# 2. obs.py: latest station observation for places with an approved station,
+#    and the station's hourly records saved to data/store/<place>/swob/ (shadow only).
 # 3. publish.py: write public/<place>.json (stale flag after 6 h without a pull).
 # 4. Save data/store to the data branch.
 # A source (or station) that could not be read is a warning, not a failure: the run still

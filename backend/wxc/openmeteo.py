@@ -56,10 +56,23 @@ Endpoints (checked 24 Nov 2026):
 - Ensemble history: none. Past ensemble runs are not served by Single Runs or
   the Ensemble API (checked live 24 Nov 2026); the Ensemble Mean API keeps a
   best-estimate series, not forecasts by lead.
+- Concurrent requests (measured 27 Nov 2026, not in the docs we read): with
+  about 10 calls in flight from one address Open-Meteo answers HTTP 429
+  "Too many concurrent requests". Counted calls are therefore paced (pace()):
+  at most MAX_IN_FLIGHT at once from this process and MIN_GAP_S between
+  starts; metadata files are not paced. That refusal is retried like the
+  minutely limit (another user of a shared runner address can cause it).
+- Extra hourly variables (shadow collection, 27 Nov 2026): extra_url() asks
+  for EXTRA_VARIABLES over one run's first 144 hours with start_hour and
+  end_hour. Cost measured live 27 Nov 2026: 12 variables over 145 hours
+  = 1.2 weighted calls; 14 variables over 16 days = 1.6. Variables per model:
+  docs/research/HOURLY_AND_CONDITIONS.md.
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -128,6 +141,50 @@ def usage_summary() -> str:
 
 RETRY_AFTER_MAX_S = 120  # a refusal that asks for a longer wait is not retried
 
+# --- pacing (Open-Meteo refuses about 10 concurrent calls from one address) --
+MAX_IN_FLIGHT = 2   # counted calls at once from this process (the jobs run one at a time)
+MIN_GAP_S = 0.5     # seconds between the starts of two counted calls
+_in_flight = threading.BoundedSemaphore(MAX_IN_FLIGHT)
+_gap_lock = threading.Lock()
+_last_start = [float("-inf")]
+clock = time.monotonic  # replaced in tests
+pause = time.sleep      # replaced in tests
+
+
+def counted(url: str) -> bool:
+    """True for calls Open-Meteo counts; metadata files are free and not paced."""
+    return "/static/meta.json" not in url
+
+
+class pace:
+    """Context manager around one counted call: waits for a free slot (at most
+    MAX_IN_FLIGHT in flight) and for MIN_GAP_S since the last call started."""
+
+    def __init__(self, url: str):
+        self.on = counted(url)
+
+    def __enter__(self):
+        if self.on:
+            _in_flight.acquire()
+            with _gap_lock:
+                wait = _last_start[0] + MIN_GAP_S - clock()
+                if wait > 0:
+                    pause(wait)
+                _last_start[0] = clock()
+        return self
+
+    def __exit__(self, *exc):
+        if self.on:
+            _in_flight.release()
+        return False
+
+
+def _refused(reason: str) -> bool:
+    """A rate-limit refusal: the minutely, hourly, daily or monthly limit, or
+    too many concurrent calls from this address."""
+    r = reason.lower()
+    return "limit" in r or "concurrent" in r
+
 
 def _wait_too_long(reason: str, retry_after) -> bool:
     """True for a refusal our retries cannot outwait: the hourly or daily
@@ -151,7 +208,7 @@ def get_json(url: str, tries: int = 8, log=print, sleep=time.sleep) -> dict:
     for k in range(tries):
         retry_after = None
         try:
-            with urllib.request.urlopen(url, timeout=120) as r:
+            with pace(url), urllib.request.urlopen(url, timeout=120) as r:
                 note_usage(url, getattr(r, "headers", None))
                 data = json.load(r)
         except urllib.error.HTTPError as e:
@@ -165,7 +222,7 @@ def get_json(url: str, tries: int = 8, log=print, sleep=time.sleep) -> dict:
         except Exception as e:  # network reset, timeout
             last = e
             data = None
-        if data is not None and data.get("error") and "limit" in str(data.get("reason", "")).lower():
+        if data is not None and data.get("error") and _refused(str(data.get("reason", ""))):
             last, limited = data.get("reason"), True
             log("limit", f"try {k + 1}/{tries}: {last}")
             if _wait_too_long(str(last), retry_after):
@@ -196,6 +253,32 @@ def forecast_url(lat, lon, elevation, model, forecast_days=16,
     """Latest run of one deterministic model (live forecast API)."""
     q = dict(latitude=lat, longitude=lon, elevation=elevation, hourly=",".join(variables),
              models=model, forecast_days=forecast_days, timezone="GMT")
+    return FORECAST + "?" + urllib.parse.urlencode(q)
+
+
+# Shadow collection (not used by the blend or the place file yet). Eleven
+# variables: 1.1 weighted calls over a 145-hour window (cost rule above).
+EXTRA_VARIABLES = (
+    "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
+    "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high",
+    "weather_code", "snowfall", "relative_humidity_2m", "visibility",
+)
+EXTRA_HOURS = 144  # lead hours 0 to 144 of the run
+
+
+def extra_window(run_unix: int) -> tuple[str, str]:
+    """(start_hour, end_hour) for lead 0 to EXTRA_HOURS of a run, whole UTC hours."""
+    t = dt.datetime.fromtimestamp(run_unix - run_unix % 3600, dt.timezone.utc)
+    end = t + dt.timedelta(hours=EXTRA_HOURS)
+    return t.strftime("%Y-%m-%dT%H:%M"), end.strftime("%Y-%m-%dT%H:%M")
+
+
+def extra_url(lat, lon, elevation, model, run_unix: int, variables=EXTRA_VARIABLES) -> str:
+    """The extra hourly variables of one deterministic model's latest run,
+    lead 0 to EXTRA_HOURS (live forecast API, start_hour and end_hour)."""
+    start, end = extra_window(run_unix)
+    q = dict(latitude=lat, longitude=lon, elevation=elevation, hourly=",".join(variables),
+             models=model, start_hour=start, end_hour=end, timezone="GMT")
     return FORECAST + "?" + urllib.parse.urlencode(q)
 
 

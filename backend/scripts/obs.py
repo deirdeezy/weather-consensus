@@ -7,6 +7,11 @@ Run from the repo root, before publish.py:
 
 How and why: backend/wxc/obs.py. Failed tries go to data/store/refusals.jsonl.
 Exit code 1 if an approved station could not be read (the last block stays).
+
+Also saves the station's hourly records to data/store/<place>/swob/ (shadow
+only, never published; backend/wxc/swob_archive.py). A refused archive
+request is logged and does not change the exit code: it is filled in on a
+later run.
 """
 from __future__ import annotations
 
@@ -19,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from wxc.obs import fetch_now  # noqa: E402
+from wxc.swob_archive import archive  # noqa: E402
 
 STORE = ROOT / "data" / "store"
 LIVE = {"stage1"}
@@ -41,6 +47,10 @@ def main() -> int:
             print(f"{place['name']}: no approved station, no observations")
             continue
         b = fetch_now(place, STORE)
+        a = archive(place, STORE)
+        print(f"{place['name']}: hourly record archive (shadow): "
+              + (f"asked from {a['asked_from']}, received {a['received']}, "
+                 f"added {a['added']}, changed {a['changed']}" if a else "request refused (logged)"))
         if b is None:
             print(f"{place['name']}: {st['name']}: nothing new saved")
             ok = False
