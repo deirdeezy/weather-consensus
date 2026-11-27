@@ -121,7 +121,7 @@ struct BacktestLoaderTests {
         }
     }
 
-    @Test func brokenBacktestNeverTouchesTheForecast() async throws {
+    @Test @MainActor func brokenBacktestNeverTouchesTheForecast() async throws {
         let placeData = try Fixture.trackRecordData()
         let site = FakeSite()
         site.answers[placePath] = .success(placeData)
@@ -135,7 +135,7 @@ struct BacktestLoaderTests {
         #expect(model.backtest == nil)
     }
 
-    @Test func modelShowsTheCardWhenTheFileIsGood() async throws {
+    @Test @MainActor func modelShowsTheCardWhenTheFileIsGood() async throws {
         let site = FakeSite()
         site.answers[placePath] = .success(try Fixture.trackRecordData())
         site.answers[backtestPath] = .success(try Fixture.backtestData())
