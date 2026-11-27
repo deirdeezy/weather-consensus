@@ -1,0 +1,176 @@
+{
+ "basis": "backtest",
+ "place": "kitimat",
+ "station": {
+  "network": "ECCC",
+  "id": "1064324",
+  "name": "Kitimat Forest Ave"
+ },
+ "scored_from": "2026-01-01",
+ "scored_to": "2026-10-30",
+ "warmup_from": "2025-11-01",
+ "method": {
+  "past_data_only": true,
+  "history": "Open-Meteo Previous Runs (archived forecasts)",
+  "habit_days": 30,
+  "weight_days": 60,
+  "script": "backend/scripts/backtest.py"
+ },
+ "baseline": "ecmwf_ifs",
+ "leads": [
+  {
+   "lead": 1,
+   "high": {
+    "consensus": 1.004,
+    "baseline": 1.424,
+    "equal_weights": 1.199,
+    "days": 285
+   },
+   "low": {
+    "consensus": 1.008,
+    "baseline": 1.475,
+    "equal_weights": 1.201,
+    "days": 285
+   },
+   "rain": {
+    "consensus": 2.478,
+    "baseline": 2.594,
+    "days": 301,
+    "brier_chance": 0.092,
+    "brier_climatology": 0.24
+   }
+  },
+  {
+   "lead": 2,
+   "high": {
+    "consensus": 1.138,
+    "baseline": 1.463,
+    "equal_weights": 1.272,
+    "days": 284
+   },
+   "low": {
+    "consensus": 1.031,
+    "baseline": 1.546,
+    "equal_weights": 1.227,
+    "days": 284
+   },
+   "rain": {
+    "consensus": 2.969,
+    "baseline": 3.143,
+    "days": 289,
+    "brier_chance": 0.104,
+    "brier_climatology": 0.243
+   }
+  },
+  {
+   "lead": 3,
+   "high": {
+    "consensus": 1.226,
+    "baseline": 1.578,
+    "equal_weights": 1.337,
+    "days": 283
+   },
+   "low": {
+    "consensus": 1.088,
+    "baseline": 1.605,
+    "equal_weights": 1.375,
+    "days": 283
+   },
+   "rain": {
+    "consensus": 3.595,
+    "baseline": 3.477,
+    "days": 271,
+    "brier_chance": 0.128,
+    "brier_climatology": 0.242
+   }
+  },
+  {
+   "lead": 4,
+   "high": {
+    "consensus": 1.427,
+    "baseline": 1.723,
+    "equal_weights": 1.466,
+    "days": 300
+   },
+   "low": {
+    "consensus": 1.268,
+    "baseline": 1.7,
+    "equal_weights": 1.378,
+    "days": 300
+   },
+   "rain": {
+    "consensus": 3.863,
+    "baseline": 3.866,
+    "days": 301,
+    "brier_chance": 0.132,
+    "brier_climatology": 0.24
+   }
+  },
+  {
+   "lead": 5,
+   "high": {
+    "consensus": 1.506,
+    "baseline": 1.839,
+    "equal_weights": 1.571,
+    "days": 277
+   },
+   "low": {
+    "consensus": 1.31,
+    "baseline": 1.847,
+    "equal_weights": 1.419,
+    "days": 277
+   },
+   "rain": {
+    "consensus": 3.815,
+    "baseline": 4.098,
+    "days": 301,
+    "brier_chance": 0.146,
+    "brier_climatology": 0.24
+   }
+  },
+  {
+   "lead": 6,
+   "high": {
+    "consensus": 1.773,
+    "baseline": 2.129,
+    "equal_weights": 1.788,
+    "days": 272
+   },
+   "low": {
+    "consensus": 1.474,
+    "baseline": 2.12,
+    "equal_weights": 1.495,
+    "days": 272
+   },
+   "rain": {
+    "consensus": 4.655,
+    "baseline": 5.211,
+    "days": 289,
+    "brier_chance": 0.159,
+    "brier_climatology": 0.243
+   }
+  },
+  {
+   "lead": 7,
+   "high": {
+    "consensus": 2.154,
+    "baseline": 2.428,
+    "equal_weights": 2.099,
+    "days": 291
+   },
+   "low": {
+    "consensus": 1.613,
+    "baseline": 2.279,
+    "equal_weights": 1.597,
+    "days": 291
+   },
+   "rain": {
+    "consensus": 4.796,
+    "baseline": 5.4,
+    "days": 301,
+    "brier_chance": 0.213,
+    "brier_climatology": 0.24
+   }
+  }
+ ]
+}

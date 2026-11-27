@@ -30,6 +30,7 @@ One file per place: `public/<place>.json` (for example `public/kitimat.json`), w
 | `credits` | array | `{"text", "licence", "url", "licence_url"}`. Show every `text` in About. |
 | `now` | object, optional | Latest station observation (see below). Added 25 Nov 2026 without a version change. |
 | `track_record` | object, optional | How each source has done against the station, its weight today and its habit fix (see below). Added 27 Nov 2026 without a version change. |
+| `backtest` | object, optional | The backtest behind the "Tested on real Kitimat weather" card (see below). Added 27 Nov 2026 without a version change. |
 
 ## `place`
 | Field | Type | Meaning |
@@ -64,7 +65,7 @@ What the Consensus tab shows in step 2 ("We check their homework") and step 3 ("
 
 Two kinds of numbers, each labelled by `basis`:
 - `archive`: each source's archived forecasts (Open-Meteo Previous Runs for days 1 to 7, Single Runs from 00 UTC for days 8 to 14) scored against the place's truth station by the nightly job. These are the numbers today's weights and habit fixes come from. A rolling backtest on archived data, not our own record.
-- `live`: our own saved forecasts (every hourly pull since `since`) scored against the same station. A miss is given only once a source has `min_days` days; before that only the count. The record started on 25 Nov 2026, so it is too short to mean anything until about the end of December 2026.
+- `live`: our own saved forecasts (every hourly pull since `since`) and our own published consensus (logged from 27 Nov 2026) scored against the same station. A miss is given only once there are `min_days` days; before that only the count. The record started on 25 Nov 2026, so it is too short to mean anything until about the end of December 2026.
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -84,7 +85,7 @@ Two kinds of numbers, each labelled by `basis`:
 | `live.window` | object | Same 60 days as `archive.miss_window`. |
 | `live.min_days` | integer | `20`, as for the archive. |
 | `live.days[]` | array | `{"lead", "days"}`: how many target days our own record has scored at that lead. Fewer than `min_days`: show "too few days" with the count, never a number from `archive` in its place. |
-| `live.consensus` | null | Our own published consensus is not recorded yet, so there is no live consensus miss. Readers must accept an array shaped like `archive.consensus` later. |
+| `live.consensus` | array or null | Our own published consensus scored like the sources: per lead `{"lead", "high", "low", "rain"}`, each `{"miss", "days"}`, `miss` null under `min_days`. Null until the first nightly scoring after 27 Nov 2026. From `consensus_log.jsonl` (below). |
 | `live.sources[]` | array | `{"id", "lead", "high", "low", "rain"}`, each `{"miss", "days"}`; `miss` null under `min_days`. Deterministic sources only; one forecast per source, issue date and target: the last pull of the issue date. |
 
 Notes:
@@ -105,6 +106,32 @@ Example (real data, Kitimat, scored on issue date 26 Nov 2026 from the `data` br
   "live": {"basis": "live", "since": "2026-11-25", "window": {"from": "2026-09-27", "to": "2026-11-25", "days": 60}, "min_days": 20,
     "days": [{"lead": 1, "days": 0}, {"lead": 7, "days": 0}, {"lead": 13, "days": 0}], "consensus": null, "sources": []}}
 ```
+
+### Our own consensus record (not in the place file)
+`publish.py` keeps one line per issue date in `data/store/<place>/consensus_log.jsonl` on the `data` branch: the last publish of that issue date (as the sources' live record keeps the last pull), replaced on each hourly run, earlier days kept. About 407 bytes per place per day.
+
+```json
+{"issue_date":"2026-11-26","issued_at":"2026-11-27T01:39:10Z","days":[[1,6.7,4.0,10.3,100,91],[2,5.0,1.7,1.3,56,92],...]}
+```
+
+Each `days` entry is `[lead, high, low, precip_mm, precip_chance, certainty]`, exactly as published (deg C, mm, percent; null stays null). `precip_mm` is kept as well as the chance so the rain miss can be compared with the backtest's. The nightly `score.py` matches every line to the station (`live_consensus.csv`) and sums it up in `scores.json` `live.consensus` per lead: high, low and rain average miss, the chance of precipitation's Brier score (wet = 1 mm or more), and Certainty said vs came true (high within 2 deg C), each with its days, over the same 60 target days and with the same 20-day minimum. The same measures `backtest.py` reports, so the live record can be set against the backtest.
+
+## `backtest` (optional)
+The numbers behind the "Tested on real Kitimat weather" card. Written by `backend/scripts/backtest.py` to `data/backtest/<place>.json` (committed) and copied in by `publish.py`; only places with a backtest have it (Kitimat today). Every number is computed by that script; nothing is added by hand.
+
+How it was tested: the consensus is rebuilt day by day on each source's archived forecasts (Open-Meteo Previous Runs), with the same habit fix (30 days), weights (60 days) and guardrails as live, and each day uses only data from before it (`method.past_data_only`). Then every scored day is compared with the station.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `basis` | string | `backtest`. |
+| `station` | object | `{"network", "id", "name"}`: the station scored against. |
+| `scored_from`, `scored_to` | date | First and last day scored: 1 Jan to 30 Oct 2026 for Kitimat (10 months, not a full year). |
+| `warmup_from` | date or null | Earliest forecast used; days before `scored_from` only fill the rolling windows. |
+| `method` | object | `past_data_only` (true), `history`, `habit_days`, `weight_days`. |
+| `baseline` | string | The one model alone it is compared with: `ecmwf_ifs`. |
+| `leads[]` | array | Days 1 to 7: `{"lead", "high", "low", "rain"}`. `high` and `low`: `consensus`, `baseline` and `equal_weights` (average miss, deg C) and `days` scored. `rain`: `consensus` and `baseline` (average miss, mm), `days`, `brier_chance` (our chance of 1 mm or more) and `brier_climatology` (always saying the period's wet-day share); lower is better. |
+
+Not in it (the canvas card shows them, the backtest does not compute them): a comparison with every single source at every range, and "a common free default".
 
 ## `now` (optional)
 The latest observation at the place's approved station (the newest minute or hourly record, value by value), and what the station has seen so far in the current climate day. Written by `backend/wxc/obs.py` from ECCC's real-time SWOB (MSC GeoMet `swob-realtime`). Observations, not a forecast: the name `today` is kept for a later lead 0 forecast, and `days` still starts at day 1.

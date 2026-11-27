@@ -8,6 +8,10 @@ Reads data/cache/prev/*.json (Open-Meteo Previous Runs) and
 data/cache/daily_1064324.json (ECCC Kitimat Forest Ave). Scores 2026-01-01 on;
 Nov and Dec 2025 warm up the rolling windows. Expected day 1 high: about 1.00.
 Any change to the algorithm must be run through this script before shipping.
+
+Also writes data/backtest/kitimat.json (committed): the numbers the app's
+"Tested on real Kitimat weather" card shows, published as `backtest` in the
+place file by publish.py. Only numbers this script computes go in it.
 """
 from __future__ import annotations
 
@@ -29,6 +33,9 @@ from wxc.eccc import parse_daily  # noqa: E402
 CACHE = ROOT / "data" / "cache"
 POOL = json.loads((ROOT / "config" / "sources.json").read_text())["deterministic_pool"]
 EVAL_FROM = pd.Timestamp("2026-01-01").date()
+RESULTS = ROOT / "data" / "backtest" / "kitimat.json"
+STATION = {"network": "ECCC", "id": "1064324", "name": "Kitimat Forest Ave"}
+BASELINE = "ecmwf_ifs"
 
 
 def load(offset_h: int = -6):
@@ -45,7 +52,7 @@ def frame(models, lead, var, dates):
 def scores():
     obs, models = load()
     dates = pd.Index(sorted(obs.index))
-    rows, calib = [], []
+    rows, calib, scored = [], [], []
     for var in ("tmax", "tmin", "pcp"):
         for lead in range(1, 8):
             F = frame(models, lead, var, dates)
@@ -73,6 +80,7 @@ def scores():
                 hit = ((ev.c - ev.o).abs() < cert.TOLERANCE_C).astype(float)
                 r.update(certainty_said=ev.p.mean(), came_true=hit.mean())
                 calib.append(pd.DataFrame({"var": var, "p": ev.p, "hit": hit}))
+            scored.extend(ev.index)
             rows.append(r)
     R = pd.DataFrame(rows)
     pd.set_option("display.width", 220)
@@ -89,6 +97,47 @@ def scores():
     out = ROOT / "data" / "backtest_scores.csv"
     R.to_csv(out, index=False)
     print("saved", out.relative_to(ROOT))
+    write_results(R, min(scored), max(scored), models[BASELINE][1].dropna(how="all").index.min())
+    print("saved", RESULTS.relative_to(ROOT))
+
+
+def results(R: pd.DataFrame, first, last, warmup_from) -> dict:
+    """The card's numbers, straight from the score table (deg C and mm, 3 decimals)."""
+    def num(x):
+        return None if pd.isna(x) else round(float(x), 3)
+
+    def row(var, lead):
+        return R[(R["var"] == var) & (R["lead"] == lead)].iloc[0]
+
+    leads = []
+    for lead in sorted(R["lead"].unique()):
+        e = {"lead": int(lead)}
+        for name, var in (("high", "tmax"), ("low", "tmin")):
+            r = row(var, lead)
+            e[name] = {"consensus": num(r.consensus), "baseline": num(r.ecmwf),
+                       "equal_weights": num(r.equal_weights), "days": int(r.n)}
+        r = row("pcp", lead)
+        e["rain"] = {"consensus": num(r.consensus), "baseline": num(r.ecmwf), "days": int(r.n),
+                     "brier_chance": num(r.brier_pop), "brier_climatology": num(r.brier_climatology)}
+        leads.append(e)
+    return {
+        "basis": "backtest",
+        "place": "kitimat",
+        "station": STATION,
+        "scored_from": first.isoformat(),
+        "scored_to": last.isoformat(),
+        "warmup_from": warmup_from.isoformat(),
+        "method": {"past_data_only": True, "history": "Open-Meteo Previous Runs (archived forecasts)",
+                   "habit_days": cs.BIAS_DAYS, "weight_days": cs.WEIGHT_DAYS,
+                   "script": "backend/scripts/backtest.py"},
+        "baseline": BASELINE,
+        "leads": leads,
+    }
+
+
+def write_results(R, first, last, warmup_from):
+    RESULTS.parent.mkdir(parents=True, exist_ok=True)
+    RESULTS.write_text(json.dumps(results(R, first, last, warmup_from), indent=1) + "\n")
 
 
 def align():

@@ -17,8 +17,8 @@ Per place, per lead day (1 to 14), per variable. Evidence labels: **backtest** =
 8. **Certainty** = chance the day's high is within 2 deg C: Normal error with sigma = 1.25 x the consensus's own recent average miss at that lead, times (today's source disagreement / usual disagreement) ^ 0.25. `wxc/certainty.py`
 9. **Nightly**: score yesterday against the station, update habit fixes and weights. **Hourly**: rebuild when any source posts a new run.
 
-## Evidence (backtest, Kitimat Forest Ave, scored 1 Jan to 31 Oct 2026)
-Reproduce with `uv run python backend/scripts/backtest.py`.
+## Evidence (backtest, Kitimat Forest Ave, scored 1 Jan to 30 Oct 2026)
+Reproduce with `uv run python backend/scripts/backtest.py`. The last scored day is 30 Oct 2026: the cached forecasts end at 23:00 UTC on 31 Oct, short of the 31 Oct climate day (it runs to 06 UTC on 1 Nov, and a day needs 22 of 24 hours); Nov and Dec 2025 only warm up the rolling windows. The script also writes `data/backtest/kitimat.json` (committed), which `publish.py` puts in the place file as `backtest` for the Consensus tab's "Tested on real Kitimat weather" card. Every number there is from this table; the canvas's "closer than every single source at every range" is not computed by this script and is not shown.
 
 | Day | High: Consensus | ECMWF | Equal weights | Low: Consensus | ECMWF |
 |---|---|---|---|---|---|

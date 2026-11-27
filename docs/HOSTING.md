@@ -6,7 +6,7 @@ Everything runs on GitHub for $0: a public repo, GitHub Actions for the jobs, a 
 | Piece | Where | Written by |
 |---|---|---|
 | Code, config, docs | `main` | people |
-| Saved state: refresh state, raw pulls (incl. the ensemble record), Single Runs, the normal, `scores.json`, `live_scores.csv`, the latest station observation (`<place>/now.json`, about 0.6 KB, replaced each hour), `refusals.jsonl` | `data` branch (checked out at `data/store/`) | the workflows |
+| Saved state: refresh state, raw pulls (incl. the ensemble record), Single Runs, the normal, `scores.json`, `live_scores.csv`, our own consensus record (`<place>/consensus_log.jsonl`, one line of about 0.4 KB per issue date, and `live_consensus.csv`, its nightly scores), the latest station observation (`<place>/now.json`, about 0.6 KB, replaced each hour), `refusals.jsonl` | `data` branch (checked out at `data/store/`) | the workflows |
 | Nightly re-downloads (Previous Runs, ECCC station data) | Actions cache, fallback copy only | nightly workflow |
 | `kitimat.json` | GitHub Pages: `https://deirdeezy.github.io/weather-consensus/kitimat.json` | the workflows (never committed) |
 | Pilot cache (`data/cache/`) | the development Mac only | never pushed |
@@ -124,7 +124,7 @@ Measured on the Stage 1 store, packed by Git (25 Nov 2026):
 - Starting `data` branch: 1.9 MiB (2,124 Single Runs, normal records, the first pulls, scores).
 - Deterministic pull: about 0.75 KiB each; about 45 a day (most sources post every 6 hours, some have several components).
 - Ensemble pull: about 16 KiB each; about 10 a day (ECMWF ENS and GEFS 4 a day, GEPS 2).
-- Single Runs: about 1 KiB each, 9 a day. `live_scores.csv` grows about 30 KiB a day once scored. Commits and folder listings: about 75 KiB a day.
+- Single Runs: about 1 KiB each, 9 a day. `live_scores.csv` grows about 30 KiB a day once scored. `consensus_log.jsonl` grows 407 bytes a day per place (measured 27 Nov 2026), about 150 KB a year; `live_consensus.csv` about 1 KiB a day. Commits and folder listings: about 75 KiB a day.
 
 Estimate: **about 350 KiB a day, 10 to 15 MB a month, 120 to 180 MB a year** (about 70% of it the ensemble record). At that rate the 1 GB guideline is about 6 years away. Unpacked, the checkout grows about 55 MB a month; each run downloads the packed size. Check the real number after the first week (`git count-objects -vH` on a fresh clone of `data`). If it ever matters: archive old months as release files, or check out only recent days in the hourly job.
 

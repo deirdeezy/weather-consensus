@@ -173,7 +173,16 @@
                         "properties": {"lead": {"$ref": "#/$defs/lead"},
                                        "days": {"type": "integer", "minimum": 0}}}
             },
-            "consensus": {"type": ["array", "null"], "description": "Null today: our own published consensus is not recorded yet. Later an array shaped like archive.consensus."},
+            "consensus": {
+              "description": "Our own published consensus (consensus_log.jsonl) scored like the sources. Null before the first nightly scoring with the log.",
+              "oneOf": [
+                {"type": "null"},
+                {"type": "array",
+                 "items": {"type": "object", "required": ["lead", "high", "low", "rain"],
+                           "properties": {"lead": {"$ref": "#/$defs/lead"}, "high": {"$ref": "#/$defs/miss"},
+                                          "low": {"$ref": "#/$defs/miss"}, "rain": {"$ref": "#/$defs/miss"}}}}
+              ]
+            },
             "sources": {
               "type": "array",
               "items": {
@@ -181,6 +190,44 @@
                 "properties": {"id": {"type": "string"}, "lead": {"$ref": "#/$defs/lead"},
                                "high": {"$ref": "#/$defs/miss"}, "low": {"$ref": "#/$defs/miss"},
                                "rain": {"$ref": "#/$defs/miss"}}
+              }
+            }
+          }
+        }
+      }
+    },
+    "backtest": {
+      "description": "Optional (added 27 Nov 2026). The backtest behind the Consensus tab's 'Tested on real weather' card: the consensus and one model alone (`baseline`) rebuilt day by day on archived forecasts, each day using only data from before it, scored against the station. Written by backend/scripts/backtest.py. Deg C and mm.",
+      "type": "object",
+      "required": ["basis", "station", "scored_from", "scored_to", "method", "baseline", "leads"],
+      "properties": {
+        "basis": {"const": "backtest"},
+        "station": {"type": "object", "required": ["network", "id", "name"],
+                    "properties": {"network": {"type": "string"}, "id": {"type": "string"}, "name": {"type": "string"}}},
+        "scored_from": {"$ref": "#/$defs/date"},
+        "scored_to": {"$ref": "#/$defs/date"},
+        "warmup_from": {"oneOf": [{"$ref": "#/$defs/date"}, {"type": "null"}]},
+        "method": {
+          "type": "object", "required": ["past_data_only"],
+          "properties": {"past_data_only": {"type": "boolean"}, "history": {"type": "string"},
+                         "habit_days": {"type": "integer"}, "weight_days": {"type": "integer"}}
+        },
+        "baseline": {"type": "string"},
+        "leads": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["lead", "high", "low", "rain"],
+            "properties": {
+              "lead": {"$ref": "#/$defs/lead"},
+              "high": {"$ref": "#/$defs/tested_temp"},
+              "low": {"$ref": "#/$defs/tested_temp"},
+              "rain": {
+                "type": "object", "required": ["consensus", "baseline", "days"],
+                "properties": {"consensus": {"type": ["number", "null"], "minimum": 0},
+                               "baseline": {"type": ["number", "null"], "minimum": 0},
+                               "days": {"type": "integer", "minimum": 0},
+                               "brier_chance": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+                               "brier_climatology": {"type": ["number", "null"], "minimum": 0, "maximum": 1}}
               }
             }
           }
@@ -220,6 +267,13 @@
                      "days": {"$ref": "#/$defs/count"},
                      "bias": {"type": ["number", "null"]},
                      "bias_days": {"$ref": "#/$defs/count"}}
+    },
+    "tested_temp": {
+      "type": "object", "required": ["consensus", "baseline", "days"],
+      "properties": {"consensus": {"type": ["number", "null"], "minimum": 0},
+                     "baseline": {"type": ["number", "null"], "minimum": 0},
+                     "equal_weights": {"type": ["number", "null"], "minimum": 0},
+                     "days": {"type": "integer", "minimum": 0}}
     },
     "scored_rain": {
       "type": "object", "required": ["weight", "miss", "days"],

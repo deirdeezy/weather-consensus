@@ -41,7 +41,7 @@ def main() -> int:
     for place in places:
         print(f"{place['name']}:")
         try:
-            doc = publish(place, cfg, STORE, OUT)
+            doc = publish(place, cfg, STORE, OUT, backtest_dir=ROOT / "data" / "backtest")
         except Exception as e:
             print(f"  not published: {e}")
             ok = False

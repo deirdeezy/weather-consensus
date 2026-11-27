@@ -8,6 +8,11 @@ Inputs (all under data/store/<place>/):
 - history/normal_records_<id>.json: the 1991 to 2020 normal (days 8 to 14).
 - now.json (hourly, backend/wxc/obs.py): the latest station observation, for
   places with an approved station only. Published as is in "now".
+- data/backtest/<place>.json (in the repo, backend/scripts/backtest.py): the
+  backtest numbers, published as "backtest".
+
+Also writes data/store/<place>/consensus_log.jsonl: one line per issue date
+with what we published (our own live record, scored nightly by score.py).
 
 Output: public/<place>.json, described in docs/JSON_SCHEMA.md and checked
 against docs/place-v1.schema.json by the tests.
@@ -130,7 +135,7 @@ def _precip(F: pd.Series, st: dict):
 
 
 def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFrame | None,
-          now: int, now_block: dict | None = None) -> dict:
+          now: int, now_block: dict | None = None, backtest: dict | None = None) -> dict:
     """The public document for one place. Pure: no reading or writing."""
     pool = cfg["deterministic_pool"]
     issue = issue_date_at(now)
@@ -213,9 +218,76 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
     record = track_record(scores, used_weights, [s["id"] for s in sources])
     if record:
         doc["track_record"] = record
+    if backtest:  # data/backtest/<place>.json, written by backend/scripts/backtest.py
+        doc["backtest"] = backtest_block(backtest)
     if now_block:  # only for a place with an approved station (backend/wxc/obs.py)
         doc["now"] = now_block
     return doc
+
+
+def _live_consensus(summary: dict | None, leads: list[int]) -> list | None:
+    """Our own published consensus scored nightly (score.consensus_summary),
+    shaped like archive.consensus. None before the first nightly with the log."""
+    if summary is None:
+        return None
+    out = []
+    for L in leads:
+        x = summary.get(str(L)) or {}
+        e = {"lead": L}
+        for name in ("high", "low", "rain"):
+            v = x.get(name) or {}
+            e[name] = {"miss": _r(v.get("mae"), 2), "days": v.get("days", 0)}
+        out.append(e)
+    return out
+
+
+# --- the backtest card --------------------------------------------------------
+
+def load_backtest(results_dir: Path | None, place_id: str) -> dict | None:
+    """The year-long test's numbers for a place, if backtest.py has written them."""
+    path = results_dir / f"{place_id}.json" if results_dir else None
+    if not path or not path.exists():
+        return None
+    r = json.loads(path.read_text())
+    return r if r.get("place") == place_id and r.get("basis") == "backtest" else None
+
+
+def backtest_block(r: dict) -> dict:
+    """As backtest.py wrote it, minus the place id and script path."""
+    method = {k: v for k, v in (r.get("method") or {}).items() if k != "script"}
+    return {"basis": "backtest", "station": r.get("station"), "scored_from": r["scored_from"],
+            "scored_to": r["scored_to"], "warmup_from": r.get("warmup_from"), "method": method,
+            "baseline": r.get("baseline"), "leads": r["leads"]}
+
+
+# --- our own consensus, one line a day (scored nightly by score.py) -----------
+
+CONSENSUS_LOG = "consensus_log.jsonl"
+
+
+def log_line(doc: dict) -> dict:
+    """One compact line: the issue date, when it was published, and per lead
+    [lead, high, low, precip_mm, precip_chance, certainty] (docs/JSON_SCHEMA.md)."""
+    return {"issue_date": doc["issue_date"], "issued_at": doc["issued_at"],
+            "days": [[d["day"], d["high"], d["low"], d["precip_mm"], d["precip_chance"], d["certainty"]]
+                     for d in doc["days"]]}
+
+
+def log_consensus(store: Path, place_id: str, doc: dict) -> int:
+    """Keep the last publish of each issue date (as the sources' live record
+    keeps the last pull): replace today's line, keep every earlier one.
+    Returns the line's size in bytes."""
+    path = store / place_id / CONSENSUS_LOG
+    line = json.dumps(log_line(doc), separators=(",", ":"))
+    lines = path.read_text().splitlines() if path.exists() else []
+    lines = [x for x in lines if x and json.loads(x).get("issue_date") != doc["issue_date"]]
+    lines.append(line)
+    lines.sort(key=lambda x: json.loads(x)["issue_date"])
+    tmp = path.with_suffix(".tmp")
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_text("\n".join(lines) + "\n")
+    tmp.replace(path)
+    return len(line) + 1
 
 
 # --- the track record (Consensus tab, steps 2 and 3) --------------------------
@@ -298,7 +370,7 @@ def track_record(scores: dict, used: dict, order: list[str]) -> dict | None:
             "min_days": live.get("min_days", LIVE_MIN_DAYS),
             "days": [{"lead": L, "days": (live_leads.get(str(L)) or {}).get("days", 0)}
                      for L in leads],
-            "consensus": None,
+            "consensus": _live_consensus(live.get("consensus"), leads),
             "sources": live_sources,
         },
     }
@@ -314,7 +386,7 @@ def _with_normal(F: pd.Series, N, T, var: str, lead: int,
 # --- the job ----------------------------------------------------------------
 
 def publish(place: dict, cfg: dict, store: Path, out_dir: Path, now: int | None = None,
-            echo=print) -> dict:
+            echo=print, backtest_dir: Path | None = None) -> dict:
     now = int(time.time() if now is None else now)
     pid = place["id"]
     log = refusal_logger(store, pid, echo)
@@ -328,6 +400,7 @@ def publish(place: dict, cfg: dict, store: Path, out_dir: Path, now: int | None 
         log("publish", "publish", "no saved pulls: run refresh.py first")
         raise RuntimeError("no saved pulls, nothing published")
     doc = build(place, cfg, scores, pulls, load_normal(store, place), now,
-                obs.load_now(store, place))
+                obs.load_now(store, place), load_backtest(backtest_dir, pid))
     _write_json(out_dir / f"{pid}.json", doc)
+    log_consensus(store, pid, doc)
     return doc

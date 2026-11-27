@@ -11,6 +11,9 @@
    data/store/<place>/scores.json for publish.py.
 4. Match every stored live pull to the station by lead and write
    data/store/<place>/live_scores.csv (the shadow-run record).
+5. Match our own published consensus (consensus_log.jsonl, one line a day
+   from publish.py) to the station the same way: live_consensus.csv, and a
+   summary in scores.json (live.consensus).
 
 If a download fails, the last saved copy is used and the failure is logged in
 data/store/refusals.jsonl. Every download that could not be refreshed is also
@@ -300,6 +303,73 @@ def live_summary(store: Path, place_id: str, live: pd.DataFrame, issue: dt.date,
     return out
 
 
+CONSENSUS_LOG = "consensus_log.jsonl"   # written by publish.py
+CERTAINTY_TOLERANCE_C = 2.0             # certainty.py: within 2 deg C
+
+
+def consensus_scores(store: Path, place_id: str, obs: pd.DataFrame) -> pd.DataFrame:
+    """Every logged consensus (one line per issue date, the last publish of
+    that date) next to the station, by lead."""
+    path = store / place_id / CONSENSUS_LOG
+    rows = []
+    for line in (path.read_text().splitlines() if path.exists() else []):
+        if not line.strip():
+            continue
+        rec = json.loads(line)
+        issue = dt.date.fromisoformat(rec["issue_date"])
+        for lead, high, low, mm, chance, certainty in rec["days"]:
+            target = issue + dt.timedelta(days=lead)
+            if target not in obs.index:
+                continue
+            o = obs.loc[target]
+            rows.append({"issue_date": issue, "issued_at": rec["issued_at"], "lead": lead,
+                         "target_date": target,
+                         "high": high, "obs_high": _num(o["tmax"]),
+                         "low": low, "obs_low": _num(o["tmin"]),
+                         "precip_mm": mm, "precip_chance": chance, "obs_precip": _num(o["pcp"]),
+                         "certainty": certainty})
+    cols = ["issue_date", "issued_at", "lead", "target_date", "high", "obs_high", "low", "obs_low",
+            "precip_mm", "precip_chance", "obs_precip", "certainty"]
+    return pd.DataFrame(rows, columns=cols)
+
+
+def consensus_summary(rows: pd.DataFrame, issue: dt.date, leads=ALL_LEADS) -> dict:
+    """Our own consensus scored like the sources: the same 60 target days, a
+    number only from LIVE_MIN_DAYS on. Also the chance of precipitation
+    (Brier score, wet = 1 mm or more) and Certainty (said vs came true), the
+    same measures backtest.py reports."""
+    w = windows(issue)["miss"]
+    d = rows
+    if len(d):
+        d = d[(d["target_date"] >= dt.date.fromisoformat(w["from"]))
+              & (d["target_date"] <= dt.date.fromisoformat(w["to"]))]
+
+    def miss(fc, ob):
+        e = (pd.to_numeric(fc, errors="coerce") - pd.to_numeric(ob, errors="coerce")).dropna()
+        return {"mae": _num(e.abs().mean()) if len(e) >= LIVE_MIN_DAYS else None, "days": int(len(e))}
+
+    out = {}
+    for lead in leads:
+        x = d[d["lead"] == lead] if len(d) else d
+        if not len(x):
+            out[str(lead)] = {"days": 0}
+            continue
+        e = {"days": int(x["target_date"].nunique()),
+             "high": miss(x["high"], x["obs_high"]), "low": miss(x["low"], x["obs_low"]),
+             "rain": miss(x["precip_mm"], x["obs_precip"])}
+        c = x[["precip_chance", "obs_precip"]].apply(pd.to_numeric, errors="coerce").dropna()
+        wet = (c["obs_precip"] >= cs.WET_MM).astype(float)
+        e["chance"] = {"brier": _num(((c["precip_chance"] / 100 - wet) ** 2).mean())
+                       if len(c) >= LIVE_MIN_DAYS else None, "days": int(len(c))}
+        k = x[["certainty", "high", "obs_high"]].apply(pd.to_numeric, errors="coerce").dropna()
+        hit = ((k["high"] - k["obs_high"]).abs() < CERTAINTY_TOLERANCE_C).astype(float)
+        enough = len(k) >= LIVE_MIN_DAYS
+        e["certainty"] = {"said": _num(k["certainty"].mean() / 100) if enough else None,
+                          "came_true": _num(hit.mean()) if enough else None, "days": int(len(k))}
+        out[str(lead)] = e
+    return out
+
+
 # --- the nightly job --------------------------------------------------------
 
 def already_scored(store: Path, place_id: str, issue: dt.date) -> bool:
@@ -342,9 +412,13 @@ def score(place: dict, cfg: dict, store: Path, issue: dt.date | None = None,
     long, normal = fetch_long(place, cfg, store, issue, get, fetch_normal, log, echo, stale)
     scores = build_scores(obs, prev, cfg["deterministic_pool"], issue, long, normal)
     live = live_scores(store, pid, obs)
+    ours = consensus_scores(store, pid, obs)
+    summary = live_summary(store, pid, live, issue)
+    summary["consensus"] = consensus_summary(ours, issue)
     scores.update(place=pid, computed_at=iso(int(time.time())),
                   truth=place["truth"], credit=[om.CREDIT, eccc.CREDIT], downloads_stale=stale,
-                  live=live_summary(store, pid, live, issue))
+                  live=summary)
     _write_json(store / pid / "scores.json", scores)
     live.to_csv(store / pid / "live_scores.csv", index=False)
+    ours.to_csv(store / pid / "live_consensus.csv", index=False)
     return {"scores": scores, "live": live}
