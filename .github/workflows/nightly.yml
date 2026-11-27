@@ -70,6 +70,7 @@ jobs:
         id: nightly
         env:
           IF_NEEDED: ${{ github.event_name == 'schedule' || !inputs.force }}
+          RETRY_ON_LIMIT: "1"  # a scoring failure caused by rate limits is left to the retry job
         run: |
           if [ "$IF_NEEDED" = "true" ]; then export IF_NEEDED=1; else export IF_NEEDED=0; fi
           bash backend/ci/nightly.sh

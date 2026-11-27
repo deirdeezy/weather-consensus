@@ -17,6 +17,8 @@ refused runs. Every failed try is one line in the log; kinds:
              in scores.json downloads_stale and fetched again next night
   publish    publish.py could not use something
   obs        a station observation was not usable or not allowed (obs.py)
+  scores_rejected  new nightly scores lacked usable highs or lows for days 1
+             to 7, so the last good scores.json was kept (score.py)
 Source "eccc_swob" is the ECCC real-time station feed (limit = HTTP 429 or 503).
 """
 from __future__ import annotations

@@ -235,3 +235,65 @@ def test_missing_scores_is_logged_and_nothing_written(tmp_path):
     assert not (tmp_path / "public").exists()
     log = (store / "refusals.jsonl").read_text()
     assert "no scores.json" in log
+
+
+# --- no Certainty without a high (review finding 3, 27 Nov 2026) ---------------
+
+def _pulls():
+    return {m: {"daily": pb._daily_from_pull(pull(m)), "run_unix": RUN, "fetched_unix": NOW} for m in POOL}
+
+
+def test_a_day_with_no_high_has_no_certainty_and_no_tier():
+    s = scores()
+    s["leads"]["3"]["tmax"]["sources"] = {}  # no source has stats for day 3 highs
+    assert s["leads"]["3"]["tmax"]["consensus_mae"] is not None  # before the fix: Certainty from this alone
+    doc = pb.build(PLACE, CFG, s, _pulls(), None, NOW)
+    d3 = doc["days"][2]
+    assert d3["high"] is None and d3["certainty"] is None and d3["tier"] is None
+    assert d3["low"] is not None and d3["source_counts"]["high"] == 0
+    validate(doc, strict(SCHEMA))
+    assert all(d["certainty"] is not None for d in doc["days"] if d["day"] != 3)
+
+
+def test_no_source_forecasts_the_day_means_no_high_and_no_certainty():
+    pulls = _pulls()
+    for p in pulls.values():  # every run ends before day 14
+        p["daily"] = p["daily"][p["daily"].index < dt.date(2026, 12, 9)]
+    doc = pb.build(PLACE, CFG, scores(), pulls, None, NOW)
+    d14 = doc["days"][13]
+    assert d14["high"] is None and d14["certainty"] is None and d14["tier"] is None
+    assert d14["source_counts"] == {"high": 0, "low": 0, "precip": 0}
+    validate(doc, strict(SCHEMA))
+
+
+def test_schema_refuses_certainty_or_tier_without_a_high():
+    doc = pb.build(PLACE, CFG, scores(), _pulls(), None, NOW)
+    bad = copy.deepcopy(doc)
+    bad["days"][0]["high"] = None
+    with pytest.raises(jsonschema.ValidationError):
+        validate(bad)
+    bad["days"][0]["certainty"] = None  # tier still set
+    with pytest.raises(jsonschema.ValidationError):
+        validate(bad)
+    bad["days"][0]["tier"] = None
+    validate(bad)
+
+
+def test_source_counts_match_the_weights_used():
+    doc = pb.build(PLACE, CFG, scores(), _pulls(), normal_table(), NOW)
+    for d in doc["days"]:
+        assert d["source_counts"]["high"] == len(d["weights"])
+    assert doc["days"][0]["source_counts"] == {"high": 3, "low": 3, "precip": 3}
+    assert doc["days"][7]["source_counts"] == {"high": 3, "low": 3, "precip": 2}  # normal in highs and lows from day 8
+    assert doc["days"][9]["source_counts"]["precip"] == 3  # and in the amount from day 10
+
+
+def test_score_age_is_published(tmp_path):
+    store = make_store(tmp_path)
+    s = scores()
+    s["computed_at"] = "2026-11-25T09:52:10Z"
+    _write_json(store / PLACE["id"] / "scores.json", s)
+    doc = pb.publish(PLACE, CFG, store, tmp_path / "public", now=NOW, echo=lambda *a: None)
+    assert doc["scores_computed_at"] == "2026-11-25T09:52:10Z"
+    validate(doc, strict(SCHEMA))
+    assert pb.build(PLACE, CFG, scores(), _pulls(), None, NOW)["scores_computed_at"] is None  # older scores.json

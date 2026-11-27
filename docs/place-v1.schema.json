@@ -35,6 +35,10 @@
     "stale": {"type": "boolean"},
     "stale_after_hours": {"type": "number", "exclusiveMinimum": 0},
     "weights_as_of": {"oneOf": [{"$ref": "#/$defs/date"}, {"type": "null"}]},
+    "scores_computed_at": {
+      "description": "Optional (added 27 Nov 2026). When the nightly scores behind the weights, habit fixes and Certainty were computed. Older than a day or so means the last nightly scoring was refused or rejected and the last good scores are in use.",
+      "oneOf": [{"$ref": "#/$defs/utc"}, {"type": "null"}]
+    },
     "units": {
       "type": "object",
       "required": ["temperature", "precipitation", "chance"],
@@ -56,6 +60,9 @@
       "items": {
         "type": "object",
         "required": ["day", "date", "high", "low", "precip_mm", "precip_chance", "certainty", "tier", "weights"],
+        "if": {"properties": {"high": {"type": "null"}}},
+        "then": {"properties": {"certainty": {"type": "null"}, "tier": {"type": "null"}},
+                 "description": "Certainty is about the high: no high, no Certainty and no tier."},
         "properties": {
           "day": {"type": "integer", "minimum": 1, "maximum": 14},
           "date": {"$ref": "#/$defs/date"},
@@ -72,6 +79,13 @@
               "properties": {"id": {"type": "string"},
                              "weight": {"type": "number", "minimum": 0, "maximum": 1}}
             }
+          },
+          "source_counts": {
+            "description": "Optional (added 27 Nov 2026). How many sources (the normal included) went into the high, the low and the precipitation amount that day; for calibrating Certainty later.",
+            "type": "object", "required": ["high", "low", "precip"],
+            "properties": {"high": {"type": "integer", "minimum": 0},
+                           "low": {"type": "integer", "minimum": 0},
+                           "precip": {"type": "integer", "minimum": 0}}
           }
         }
       }

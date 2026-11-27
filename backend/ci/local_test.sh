@@ -96,6 +96,33 @@ check "missing.py --fail-on-limit passes" "uv run --no-sync python backend/scrip
 IF_NEEDED=1 bash backend/ci/nightly.sh > "$work/again.log" 2>&1 || true
 check "the next --if-needed run skips again" "grep -q 'every download fresh; skipped' \"$work/again.log\""
 
+step "Empty download cache and every Open-Meteo call refused (review finding 2): the last good scores stay"
+# A new runner whose Actions cache was evicted: no saved Previous Runs, only the committed
+# Single Runs. The new scores would cover days 8 to 14 only, so they must not replace good ones.
+cp data/store/kitimat/scores.json "$work/scores_good.json"
+rm -f data/store/kitimat/history/prev_*.json
+highs_ok() { uv run --no-sync python -c 'import json,sys; d=json.load(open("public/kitimat.json")); sys.exit(0 if all(x["high"] is not None and x["certainty"] is not None for x in d["days"][:7]) else 1)'; }
+: > "$work/out5"
+if GITHUB_OUTPUT="$work/out5" RETRY_ON_LIMIT=1 WXC_FAKE_OPEN_METEO=daily PYTHONPATH="$fake" IF_NEEDED=0 \
+   bash backend/ci/nightly.sh > "$work/empty1.log" 2>&1; then rc=0; else rc=$?; fi
+tail -12 "$work/empty1.log"
+check "new scores rejected" "grep -q 'new scores not used (days 1 to 7: no stats)' \"$work/empty1.log\""
+check "last good scores.json kept, byte for byte" "cmp -s data/store/kitimat/scores.json \"$work/scores_good.json\""
+check "rejection recorded" "[ -s data/store/kitimat/scores_rejected.json ]"
+check "first job passes so the retry job runs (om_refused=true)" "[ $rc -eq 0 ] && grep -qx 'om_refused=true' \"$work/out5\""
+check "published file keeps days 1 to 7 highs and Certainty" "highs_ok"
+check "published file says when the scores in use were computed" \
+  "[ \"\$(uv run --no-sync python -c 'import json; print(json.load(open(\"public/kitimat.json\"))[\"scores_computed_at\"])')\" = \"\$(uv run --no-sync python -c 'import json; print(json.load(open(\"$work/scores_good.json\"))[\"computed_at\"])')\" ]"
+if WXC_FAKE_OPEN_METEO=daily PYTHONPATH="$fake" IF_NEEDED=1 \
+   bash backend/ci/nightly.sh > "$work/empty2.log" 2>&1; then rc=0; else rc=$?; fi
+check "retry job still refused: rescores, rejects again and fails the run" \
+  "[ $rc -ne 0 ] && ! grep -q 'skipped' \"$work/empty2.log\" && cmp -s data/store/kitimat/scores.json \"$work/scores_good.json\""
+bash backend/ci/hourly.sh > "$work/empty_hourly.log" 2>&1 || true
+check "next hourly publish keeps days 1 to 7 highs" "highs_ok"
+if IF_NEEDED=1 bash backend/ci/nightly.sh > "$work/empty3.log" 2>&1; then rc=0; else rc=$?; fi
+check "recovery on a working address: promoted, rejection cleared" \
+  "[ $rc -eq 0 ] && [ ! -e data/store/kitimat/scores_rejected.json ] && ! cmp -s data/store/kitimat/scores.json \"$work/scores_good.json\""
+
 step "Expected gaps: Single Runs Open-Meteo does not have do not fail the run"
 yday="$(uv run --no-sync python -c 'import datetime as d,sys; sys.path.insert(0,"backend"); from wxc.score import issue_date_now; print(issue_date_now()-d.timedelta(days=1))')"
 rm -f data/store/kitimat/single/*/"$yday".json

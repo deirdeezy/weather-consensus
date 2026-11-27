@@ -11,6 +11,11 @@
 #    GitHub Actions it sets the job output om_refused, which starts the retry
 #    job on a fresh runner (.github/workflows/nightly.yml). The retry job then
 #    runs missing.py --fail-on-limit to fail the run if data is still missing.
+# If scoring failed (for example the new scores were rejected and the last good
+# ones kept) the job fails, so GitHub emails the owner. One exception: with
+# RETRY_ON_LIMIT=1 (the first nightly job) and Open-Meteo rate-limit refusals
+# behind it, the job passes so the retry job runs on a fresh runner; the retry
+# runs this script without RETRY_ON_LIMIT and fails the run if it fails too.
 # The runner's cloud and region are printed first and added to refusal lines.
 set -uo pipefail
 start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -31,4 +36,11 @@ bash backend/ci/save_data.sh "Nightly scoring $start" || exit 1
 
 { echo "## Nightly scoring $start"; py backend/scripts/refusals.py --since "$start"; } >> "$summary"
 py backend/scripts/missing.py | tee -a "$summary"
+if [ $scored -ne 0 ] && [ "${RETRY_ON_LIMIT:-0}" = "1" ]; then
+  py backend/scripts/missing.py --status
+  if [ $? -eq 3 ]; then
+    echo "::warning::Scoring failed with Open-Meteo rate-limit refusals; the retry job on a fresh runner decides"
+    scored=0
+  fi
+fi
 [ $scored -eq 0 ] && [ $published -eq 0 ]

@@ -14,7 +14,11 @@ Inputs (all under data/store/<place>/):
   a small pointer, "backtest_file" (path, SHA-256, bytes).
 
 Also writes data/store/<place>/consensus_log.jsonl: one line per issue date
-with what we published (our own live record, scored nightly by score.py).
+with what we published (our own live record, scored nightly by score.py),
+and appends to issue_ledger.jsonl what was published at two fixed issue
+times a day (the first publish from 13:00 UTC and from 01:00 UTC): values,
+weights and each source's run time, so the live record can be scored at a
+fixed lead time as well as at the last publish of the day.
 
 Output: public/<place>.json, described in docs/JSON_SCHEMA.md and checked
 against docs/place-v1.schema.json by the tests.
@@ -45,7 +49,7 @@ from . import horizon as hz
 from . import obs
 from .daily import CLIMATE_DAY_OFFSET_H
 from .refresh import _write_json, iso, load_state, refusal_logger
-from .score import ALL_LEADS, LIVE_MIN_DAYS, NORMAL, _daily_from_pull
+from .score import ALL_LEADS, LEDGER, LIVE_MIN_DAYS, NORMAL, _daily_from_pull
 
 SCHEMA_VERSION = 1
 STALE_AFTER_H = 6     # no new pull for this long: stale (CLAUDE.md, reliability)
@@ -138,8 +142,11 @@ def _precip(F: pd.Series, st: dict):
 
 
 def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFrame | None,
-          now: int, now_block: dict | None = None, backtest: dict | None = None) -> dict:
-    """The public document for one place. Pure: no reading or writing."""
+          now: int, now_block: dict | None = None, backtest: dict | None = None,
+          used_out: dict | None = None) -> dict:
+    """The public document for one place. Pure: no reading or writing.
+    used_out, if given, gets the weights used per lead and variable (for the
+    issue ledger)."""
     pool = cfg["deterministic_pool"]
     issue = issue_date_at(now)
     newest_run = max((p["run_unix"] for p in pulls.values()), default=None)
@@ -169,11 +176,14 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
         if N is not None and L >= hz.POP_MIX_FROM_LEAD and not math.isnan(pop):
             pop = (pop + float(N.at[T, "wet_share"])) / 2
 
-        st = (scores.get("leads", {}).get(str(L)) or {}).get("tmax", {})
-        p = cert.certainty(pd.Series([st.get("consensus_mae")], dtype=float),
-                           pd.Series([spread], dtype=float),
-                           pd.Series([st.get("spread_ref")], dtype=float)).iloc[0]
-        c = _pct(p)
+        # Certainty is about the high: no high, no Certainty (review finding 3).
+        c = None
+        if not math.isnan(hi):
+            st = (scores.get("leads", {}).get(str(L)) or {}).get("tmax", {})
+            p = cert.certainty(pd.Series([st.get("consensus_mae")], dtype=float),
+                               pd.Series([spread], dtype=float),
+                               pd.Series([st.get("spread_ref")], dtype=float)).iloc[0]
+            c = _pct(p)
         weights = sorted(((m, _r(x, 3)) for m, x in w.dropna().items()), key=lambda t: -t[1])
         shown.update(m for m, _ in weights)
         days.append({
@@ -186,6 +196,8 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
             "certainty": c,
             "tier": None if c is None else cert.tier(c / 100),
             "weights": [{"id": m, "weight": x} for m, x in weights],
+            "source_counts": {"high": int(w.notna().sum()), "low": int(w_lo.notna().sum()),
+                              "precip": int(w_pcp.notna().sum())},
         })
 
     truth = place.get("truth")
@@ -213,11 +225,14 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
         "stale": stale,
         "stale_after_hours": STALE_AFTER_H,
         "weights_as_of": scores.get("issue_date"),
+        "scores_computed_at": scores.get("computed_at"),
         "units": {"temperature": "degC", "precipitation": "mm", "chance": "percent"},
         "sources": sources,
         "days": days,
         "credits": [OPEN_METEO, ECCC],
     }
+    if used_out is not None:
+        used_out.update(used_weights)
     record = track_record(scores, used_weights, [s["id"] for s in sources])
     if record:
         doc["track_record"] = record
@@ -307,6 +322,69 @@ def log_consensus(store: Path, place_id: str, doc: dict) -> int:
     tmp.write_text("\n".join(lines) + "\n")
     tmp.replace(path)
     return len(line) + 1
+
+
+# --- the issue ledger: what was published at two fixed times a day -----------
+
+# Each slot opens at this UTC hour and runs until the other one opens; the first
+# publish in a slot is recorded. 13:00 UTC is 05:00 in Kitimat (PST) and 01:00
+# UTC is 17:00 the day before: a morning and an evening issue of one issue date.
+MORNING_UTC_HOUR = 13
+EVENING_UTC_HOUR = 1
+
+
+def ledger_slot(now: int) -> tuple[str, str]:
+    """(slot name, slot start as UTC time) for a publish at `now`."""
+    t = dt.datetime.fromtimestamp(now, dt.timezone.utc)
+    if t.hour >= MORNING_UTC_HOUR:
+        name, day, hour = "morning", t.date(), MORNING_UTC_HOUR
+    elif t.hour >= EVENING_UTC_HOUR:
+        name, day, hour = "evening", t.date(), EVENING_UTC_HOUR
+    else:  # after midnight, before the evening slot opens: still yesterday's morning slot
+        name, day, hour = "morning", t.date() - dt.timedelta(days=1), MORNING_UTC_HOUR
+    start = dt.datetime.combine(day, dt.time(hour), dt.timezone.utc)
+    return name, iso(int(start.timestamp()))
+
+
+def _permille(w, m):
+    return None if w is None or m not in w.index or pd.isna(w[m]) else int(round(1000 * float(w[m])))
+
+
+def ledger_line(doc: dict, used: dict, pulls: dict, now: int) -> dict:
+    """One compact line. `src` names the sources once; `run` is each one's
+    newest run time (null for the normal); each day is [lead, high, low,
+    precip_mm, precip_chance, certainty, high weights, low weights, precip
+    weights], the weights in thousandths in `src` order, null where a source
+    had no weight. Values exactly as published."""
+    slot, start = ledger_slot(now)
+    ids = list(pulls)  # pool order (load_pulls)
+    if any(NORMAL in w.index for u in used.values() for w in u.values() if w is not None):
+        ids.append(NORMAL)
+    days = []
+    for d in doc["days"]:
+        u = used.get(d["day"]) or {}
+        days.append([d["day"], d["high"], d["low"], d["precip_mm"], d["precip_chance"], d["certainty"]]
+                    + [[_permille(u.get(v), m) for m in ids] for v in ("tmax", "tmin", "pcp")])
+    return {"slot": slot, "slot_start": start, "issue_date": doc["issue_date"],
+            "issued_at": doc["issued_at"], "weights_as_of": doc["weights_as_of"],
+            "scores_computed_at": doc.get("scores_computed_at"), "stale": doc["stale"],
+            "src": ids, "run": [iso(pulls[m]["run_unix"]) if m in pulls else None for m in ids],
+            "days": days}
+
+
+def log_issue(store: Path, place_id: str, line: dict) -> int:
+    """Append the line if its slot has no line yet (append-only: earlier lines
+    are never changed). Returns the bytes added, 0 if the slot was taken."""
+    path = store / place_id / LEDGER
+    if path.exists():
+        for x in path.read_text().splitlines():
+            if x.strip() and json.loads(x).get("slot_start") == line["slot_start"]:
+                return 0
+    text = json.dumps(line, separators=(",", ":")) + "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as f:
+        f.write(text)
+    return len(text.encode())
 
 
 # --- the track record (Consensus tab, steps 2 and 3) --------------------------
@@ -419,8 +497,9 @@ def publish(place: dict, cfg: dict, store: Path, out_dir: Path, now: int | None 
         log("publish", "publish", "no saved pulls: run refresh.py first")
         raise RuntimeError("no saved pulls, nothing published")
     backtest = load_backtest(backtest_dir, pid)
+    used: dict = {}
     doc = build(place, cfg, scores, pulls, load_normal(store, place), now,
-                obs.load_now(store, place), backtest)
+                obs.load_now(store, place), backtest, used_out=used)
     if backtest:  # written first, so the pointer never names a file that is not there yet
         path = out_dir / BACKTEST_DIR / f"{pid}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -429,4 +508,5 @@ def publish(place: dict, cfg: dict, store: Path, out_dir: Path, now: int | None 
         tmp.replace(path)
     _write_json(out_dir / f"{pid}.json", doc)
     log_consensus(store, pid, doc)
+    log_issue(store, pid, ledger_line(doc, used, pulls, now))
     return doc

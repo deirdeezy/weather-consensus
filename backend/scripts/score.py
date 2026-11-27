@@ -9,7 +9,10 @@ Run from the repo root:
 
 Writes data/store/<place>/scores.json (for publish.py) and
 live_scores.csv (our stored pulls vs the station). How: backend/wxc/score.py.
-Exit code 1 if a place could not be scored.
+Exit code 1 if a place could not be scored, including when the new scores
+were not good enough to replace the last good ones (backend/wxc/score.py,
+why_unusable): then scores.json is left as it was and the reasons are in
+scores_rejected.json and the refusal log.
 """
 from __future__ import annotations
 
@@ -27,6 +30,27 @@ from wxc.score import already_scored, issue_date_now, score  # noqa: E402
 
 STORE = ROOT / "data" / "store"
 LIVE = {"stage1"}
+
+
+def summary_lines(s: dict) -> list[str]:
+    """What the job log shows about new scores. Never fails on missing parts."""
+    out = [f"issue date {s.get('issue_date')}, station data through {s.get('obs_through')}"]
+    missing = s.get("sources_missing") or []
+    out.append(f"sources with history {len(s.get('sources_with_history') or [])}"
+               + (f", missing: {', '.join(missing)}" if missing else ""))
+    d1 = (s.get("leads") or {}).get("1") or {}
+    for var in ("tmax", "tmin"):
+        v = d1.get(var)
+        if not v:
+            out.append(f"day 1 {var}: no stats")
+            continue
+        ws = sorted(((x.get("weight") or 0, m) for m, x in (v.get("sources") or {}).items()), reverse=True)
+        out.append(f"day 1 {var}: consensus recent miss {v.get('consensus_mae')} deg C; weights "
+                   + ", ".join(f"{m} {w:.0%}" for w, m in ws))
+    for x in s.get("downloads_stale") or []:
+        out.append(f"not refreshed ({x.get('why')}): {x.get('download')} {x.get('source')}"
+                   + (f" {x['day']}" if x.get("day") else "") + (f", used {x['used']}" if x.get("used") else ""))
+    return out
 
 
 def main() -> int:
@@ -58,19 +82,9 @@ def main() -> int:
             print(f"  not scored: {e}")
             ok = False
             continue
-        s = r["scores"]
-        print(f"  issue date {s['issue_date']}, station data through {s['obs_through']}")
-        print(f"  sources with history {len(s['sources_with_history'])}"
-              + (f", missing: {', '.join(s['sources_missing'])}" if s["sources_missing"] else ""))
-        for var in ("tmax", "tmin"):
-            d1 = s["leads"]["1"][var]
-            ws = sorted(((v["weight"] or 0, m) for m, v in d1["sources"].items()), reverse=True)
-            print(f"  day 1 {var}: consensus recent miss {d1['consensus_mae']} deg C; weights "
-                  + ", ".join(f"{m} {w:.0%}" for w, m in ws))
+        for line in summary_lines(r["scores"]):
+            print("  " + line)
         print(f"  live pulls scored: {len(r['live'])} rows")
-        for x in s.get("downloads_stale") or []:
-            print(f"  not refreshed ({x['why']}): {x['download']} {x['source']}"
-                  + (f" {x['day']}" if x.get("day") else "") + (f", used {x['used']}" if x.get("used") else ""))
     print(om.usage_summary())
     return 0 if ok else 1
 

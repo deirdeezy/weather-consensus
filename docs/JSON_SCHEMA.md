@@ -24,6 +24,7 @@ One file per place: `public/<place>.json` (for example `public/kitimat.json`), w
 | `stale` | boolean | True when no new run was pulled for more than `stale_after_hours`. The app shows it and lowers Certainty. |
 | `stale_after_hours` | number | `6` today. |
 | `weights_as_of` | date or null | Issue date of the nightly scores the weights and habit fixes come from. |
+| `scores_computed_at` | UTC time or null, optional | When those nightly scores were computed (`scores.json` `computed_at`). Added 27 Nov 2026 without a version change; null or absent for scores from before then. Normally within a day of `issued_at`; older means the last nightly scoring failed or its new scores were rejected (not good enough for days 1 to 7) and the last good scores are still in use. |
 | `units` | object | `{"temperature": "degC", "precipitation": "mm", "chance": "percent"}`. |
 | `sources` | array | Every source that has weight on any day: `{"id", "label"}`. Colour in the source bar is chosen by `id` in the app. |
 | `days` | array | Days 1 to 14 in order. See below. |
@@ -50,9 +51,10 @@ One file per place: `public/<place>.json` (for example `public/kitimat.json`), w
 | `high`, `low` | number or null | Consensus high and low, deg C, 1 decimal. |
 | `precip_mm` | number or null | Consensus precipitation amount, mm, 1 decimal. |
 | `precip_chance` | integer or null | Chance of 1 mm or more, percent. |
-| `certainty` | integer or null | Chance the day's high lands within 2 deg C (3.6 deg F) of `high`, percent. |
-| `tier` | string or null | `High` (75+), `Medium` (50 to 74), `Low` (under 50), from the rounded `certainty`. |
+| `certainty` | integer or null | Chance the day's high lands within 2 deg C (3.6 deg F) of `high`, percent. Always null when `high` is null (since 27 Nov 2026; the formal schema refuses a file that breaks this). |
+| `tier` | string or null | `High` (75+), `Medium` (50 to 74), `Low` (under 50), from the rounded `certainty`. Null when `certainty` is null. |
 | `weights` | array | `{"id", "weight"}` for the high, largest first; weights are shares (0 to 1, 3 decimals) and add to about 1. Scale bar lengths by their sum. |
+| `source_counts` | object, optional | `{"high", "low", "precip"}`: how many sources (the normal included) went into each value that day. Added 27 Nov 2026 without a version change, for calibrating Certainty by source count later. 0 means no value (`high` null, and so no Certainty). |
 
 Notes:
 - Day 1 is the next climate day: the first day the backtest scores (lead 1). Today is not in version 1.
@@ -115,6 +117,28 @@ Example (real data, Kitimat, scored on issue date 26 Nov 2026 from the `data` br
 ```
 
 Each `days` entry is `[lead, high, low, precip_mm, precip_chance, certainty]`, exactly as published (deg C, mm, percent; null stays null). `precip_mm` is kept as well as the chance so the rain miss can be compared with the backtest's. The nightly `score.py` matches every line to the station (`live_consensus.csv`) and sums it up in `scores.json` `live.consensus` per lead: high, low and rain average miss, the chance of precipitation's Brier score (wet = 1 mm or more), and Certainty said vs came true (high within 2 deg C), each with its days, over the same 60 target days and with the same 20-day minimum. The same measures `backtest.py` reports, so the live record can be set against the backtest.
+
+### The issue ledger (not in the place file)
+The consensus log above keeps only the last publish of each issue date, so its lead time drifts with the hour of the last run. The issue ledger records what was published at two fixed times a day, for scoring at a fixed lead time. `publish.py` appends to `data/store/<place>/issue_ledger.jsonl` on the `data` branch (added 27 Nov 2026):
+
+- `morning`: the first publish from 13:00 UTC (05:00 in Kitimat on PST) until 01:00 UTC.
+- `evening`: the first publish from 01:00 UTC (17:00 the day before in Kitimat) until 13:00 UTC.
+- Both belong to the same issue date (the climate day, UTC minus 6 h). A slot whose runs all failed has no line; a late run fills its slot, and `issued_at` shows how late.
+- Append-only: a line is never changed or removed; a slot that already has a line gets no second one.
+
+One line per slot, compact (no spaces). Real values, but this line was made on the development Mac from a copy of the `data` branch on 27 Nov 2026 with the publish time set to 13:10 UTC to show a morning slot; it is not from the live ledger. Shortened (`...`):
+
+```json
+{"slot":"morning","slot_start":"2026-11-27T13:00:00Z","issue_date":"2026-11-27","issued_at":"2026-11-27T13:10:00Z","weights_as_of":"2026-11-27","scores_computed_at":"2026-11-27T09:56:36Z","stale":false,"src":["ecmwf_ifs","ecmwf_aifs025_single","gfs_seamless","gem_seamless","icon_seamless","ukmo_seamless","jma_seamless","cma_grapes_global","meteofrance_seamless","normal"],"run":["2026-11-27T06:00:00Z","2026-11-27T06:00:00Z","2026-11-27T06:00:00Z","2026-11-27T06:00:00Z","2026-11-27T06:00:00Z","2026-11-27T00:00:00Z","2026-11-27T00:00:00Z","2026-11-27T00:00:00Z","2026-11-27T06:00:00Z",null],
+ "days":[[1,5.3,2.5,3.5,89,95,[102,149,89,144,145,165,68,44,93,null],[120,168,75,109,137,161,75,72,83,null],[130,102,85,130,107,114,134,111,87,null]],...,
+         [14,1.7,-2.6,20.8,60,46,[null,350,300,null,null,null,null,null,null,350],[null,350,300,null,null,null,null,null,null,350],[null,null,430,null,null,null,null,null,null,570]]]}
+```
+
+- `src`: every source with a saved run, in pool order, then `normal` if it had weight on any day. `run`: each one's newest run start (UTC), null for the normal. A source with a run but no weight on any day was late (its run more than 24 h behind the newest).
+- `days`: `[lead, high, low, precip_mm, precip_chance, certainty, high weights, low weights, precip weights]`. Values exactly as published. Weights in thousandths, in `src` order, null where the source had no weight that day.
+- `weights_as_of`, `scores_computed_at`, `stale`: as in the place file at that moment.
+- Size, Kitimat with 9 models and the normal: 2,832 bytes a line, **5,663 bytes a day** (measured 27 Nov 2026 on that copy), about 2 MB a year.
+- Scored nightly by `score.py` exactly like the consensus log, per slot: `live_issues.csv` (one row per line and lead, with `slot` and `slot_start`) and `scores.json` `live.issues.morning` and `live.issues.evening` (same measures, window and 20-day minimum as `live.consensus`).
 
 ## The backtest file and `backtest_file` (optional)
 The numbers behind the "Tested on real Kitimat weather" card live in their own file on the same site, `backtest/<place>.json` (for example `https://deirdeezy.github.io/weather-consensus/backtest/kitimat.json`), because they change only when the backtest is run again. Formal schema: `docs/backtest-v1.schema.json`. Written by `backend/scripts/backtest.py` to `data/backtest/<place>.json` (committed) and published by `publish.py` compact with sorted keys, so the same results always give the same bytes. Only places with a backtest have it (Kitimat today). Every number is computed by that script; nothing is added by hand.

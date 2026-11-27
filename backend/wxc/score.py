@@ -13,7 +13,9 @@
    data/store/<place>/live_scores.csv (the shadow-run record).
 5. Match our own published consensus (consensus_log.jsonl, one line a day
    from publish.py) to the station the same way: live_consensus.csv, and a
-   summary in scores.json (live.consensus).
+   summary in scores.json (live.consensus). The same for the issue ledger
+   (issue_ledger.jsonl, the morning and evening issues): live_issues.csv and
+   live.issues.morning / live.issues.evening.
 
 If a download fails, the last saved copy is used and the failure is logged in
 data/store/refusals.jsonl. Every download that could not be refreshed is also
@@ -22,6 +24,15 @@ rate-limit refusal, "error" otherwise), so a later nightly run rescores
 (already_scored) and the workflow can retry on a fresh runner and fail the
 run if limit refusals still left data missing (limit_losses). Single Runs
 Open-Meteo answered it does not have are expected gaps, not stale.
+
+New scores are a candidate. They replace scores.json only if every lead 1 to
+7 has usable highs and lows (why_unusable(): at least one source with a habit fix
+and an error, and the consensus's own recent miss). Otherwise the last good
+scores.json stays, the reasons go to scores_rejected.json and the refusal log,
+and score() raises ScoresRejected so the nightly run fails (or, when Open-Meteo
+refused calls for a rate limit, the retry job on a fresh runner decides). This
+stops an empty download cache plus refused downloads from replacing good
+scores with ones that only cover days 8 to 14 (review finding 2, 27 Nov 2026).
 """
 from __future__ import annotations
 
@@ -307,30 +318,52 @@ CONSENSUS_LOG = "consensus_log.jsonl"   # written by publish.py
 CERTAINTY_TOLERANCE_C = 2.0             # certainty.py: within 2 deg C
 
 
+CONSENSUS_COLS = ["issue_date", "issued_at", "lead", "target_date", "high", "obs_high", "low", "obs_low",
+                  "precip_mm", "precip_chance", "obs_precip", "certainty"]
+
+
+def _lines(path: Path) -> list[dict]:
+    return [json.loads(x) for x in (path.read_text().splitlines() if path.exists() else []) if x.strip()]
+
+
+def _match(rec: dict, obs: pd.DataFrame, extra: dict) -> list[dict]:
+    """One logged issue's days next to the station. Each day starts
+    [lead, high, low, precip_mm, precip_chance, certainty]; anything after
+    (the ledger's weights) is not scored here."""
+    issue = dt.date.fromisoformat(rec["issue_date"])
+    rows = []
+    for lead, high, low, mm, chance, certainty, *_ in rec["days"]:
+        target = issue + dt.timedelta(days=lead)
+        if target not in obs.index:
+            continue
+        o = obs.loc[target]
+        rows.append({**extra, "issue_date": issue, "issued_at": rec["issued_at"], "lead": lead,
+                     "target_date": target,
+                     "high": high, "obs_high": _num(o["tmax"]),
+                     "low": low, "obs_low": _num(o["tmin"]),
+                     "precip_mm": mm, "precip_chance": chance, "obs_precip": _num(o["pcp"]),
+                     "certainty": certainty})
+    return rows
+
+
 def consensus_scores(store: Path, place_id: str, obs: pd.DataFrame) -> pd.DataFrame:
     """Every logged consensus (one line per issue date, the last publish of
     that date) next to the station, by lead."""
-    path = store / place_id / CONSENSUS_LOG
-    rows = []
-    for line in (path.read_text().splitlines() if path.exists() else []):
-        if not line.strip():
-            continue
-        rec = json.loads(line)
-        issue = dt.date.fromisoformat(rec["issue_date"])
-        for lead, high, low, mm, chance, certainty in rec["days"]:
-            target = issue + dt.timedelta(days=lead)
-            if target not in obs.index:
-                continue
-            o = obs.loc[target]
-            rows.append({"issue_date": issue, "issued_at": rec["issued_at"], "lead": lead,
-                         "target_date": target,
-                         "high": high, "obs_high": _num(o["tmax"]),
-                         "low": low, "obs_low": _num(o["tmin"]),
-                         "precip_mm": mm, "precip_chance": chance, "obs_precip": _num(o["pcp"]),
-                         "certainty": certainty})
-    cols = ["issue_date", "issued_at", "lead", "target_date", "high", "obs_high", "low", "obs_low",
-            "precip_mm", "precip_chance", "obs_precip", "certainty"]
-    return pd.DataFrame(rows, columns=cols)
+    rows = [r for rec in _lines(store / place_id / CONSENSUS_LOG) for r in _match(rec, obs, {})]
+    return pd.DataFrame(rows, columns=CONSENSUS_COLS)
+
+
+LEDGER = "issue_ledger.jsonl"           # written by publish.py
+LEDGER_SLOTS = ("morning", "evening")
+
+
+def ledger_scores(store: Path, place_id: str, obs: pd.DataFrame) -> pd.DataFrame:
+    """Every ledger line (the first publish from 13:00 UTC, "morning", and from
+    01:00 UTC, "evening") next to the station, by lead. Same columns as
+    consensus_scores plus the slot and its start."""
+    rows = [r for rec in _lines(store / place_id / LEDGER)
+            for r in _match(rec, obs, {"slot": rec["slot"], "slot_start": rec["slot_start"]})]
+    return pd.DataFrame(rows, columns=["slot", "slot_start"] + CONSENSUS_COLS)
 
 
 def consensus_summary(rows: pd.DataFrame, issue: dt.date, leads=ALL_LEADS) -> dict:
@@ -372,36 +405,98 @@ def consensus_summary(rows: pd.DataFrame, issue: dt.date, leads=ALL_LEADS) -> di
 
 # --- the nightly job --------------------------------------------------------
 
+REJECTED = "scores_rejected.json"  # why the last candidate was not promoted
+
+
+class ScoresRejected(RuntimeError):
+    """New scores were not good enough to replace the last good ones."""
+
+    def __init__(self, why: list[str], kept: dict | None):
+        self.why, self.kept = why, kept
+        what = (f"kept the scores for issue date {kept['issue_date']} (computed {kept['computed_at']})"
+                if kept else "no earlier scores to keep")
+        super().__init__(f"new scores not used ({'; '.join(why)}); {what}")
+
+
+def why_unusable(scores: dict) -> list[str]:
+    """Why a candidate cannot replace the last good scores; empty if it can.
+    Every lead 1 to 7 needs, for highs and for lows, at least one source with
+    a habit fix and an error (so the blend has a number) and the consensus's
+    own recent miss (so Certainty has one)."""
+    missing: dict[str, list[int]] = {}
+    for L in LEADS:
+        lead = (scores.get("leads") or {}).get(str(L)) or {}
+        for var in ("tmax", "tmin"):
+            v = lead.get(var) or {}
+            ok = any(st.get("habit_fix") is not None and st.get("mse") is not None
+                     for st in (v.get("sources") or {}).values())
+            if not lead:
+                key = "no stats"
+            elif not ok:
+                key = f"{var}: no source with a habit fix and an error"
+            elif v.get("consensus_mae") is None:
+                key = f"{var}: no recent consensus miss"
+            else:
+                continue
+            if L not in missing.setdefault(key, []):
+                missing[key].append(L)
+    return [f"{_days(ls)}: {key}" for key, ls in missing.items()]
+
+
+def _days(leads: list[int]) -> str:
+    if len(leads) > 1 and leads == list(range(leads[0], leads[-1] + 1)):
+        return f"days {leads[0]} to {leads[-1]}"
+    return ("day " if len(leads) == 1 else "days ") + ", ".join(map(str, leads))
+
+
+def _read(path: Path) -> dict | None:
+    try:
+        return json.loads(path.read_text()) if path.exists() else None
+    except ValueError:
+        return None
+
+
+def rejection(store: Path, place_id: str, issue: dt.date) -> dict | None:
+    """The record of a candidate rejected for this issue date, if any (and not
+    since replaced by a promoted one: promotion deletes it)."""
+    r = _read(store / place_id / REJECTED)
+    return r if r and r.get("issue_date") == issue.isoformat() else None
+
+
 def already_scored(store: Path, place_id: str, issue: dt.date) -> bool:
     """True when scores.json is for this issue date and already has the
     station's day before it. The nightly workflow runs twice; the second run
-    only rescores if ECCC had not posted yesterday's values by the first."""
+    only rescores if ECCC had not posted yesterday's values by the first.
+    False while today's last attempt was rejected, so a later run tries again."""
     p = store / place_id / "scores.json"
     if not p.exists():
         return False
     s = json.loads(p.read_text())
     done = (issue - dt.timedelta(days=1)).isoformat()
     return (s.get("issue_date") == issue.isoformat() and (s.get("obs_through") or "") >= done
-            and not s.get("downloads_stale") and s.get("format") == SCORES_FORMAT)
+            and not s.get("downloads_stale") and s.get("format") == SCORES_FORMAT
+            and rejection(store, place_id, issue) is None)
 
 
 def limit_losses(store: Path, place_id: str, issue: dt.date) -> list[dict]:
     """Downloads that today's scoring could not refresh because Open-Meteo
     refused them for a rate limit. Empty if the place has no scores for this
-    issue date (not scored today) or nothing was refused."""
-    p = store / place_id / "scores.json"
-    if not p.exists():
-        return []
-    s = json.loads(p.read_text())
-    if s.get("issue_date") != issue.isoformat():
+    issue date (not scored today) or nothing was refused. A candidate rejected
+    today counts: its losses are the most recent attempt's."""
+    r = rejection(store, place_id, issue)
+    if r is not None:
+        return [x for x in r.get("downloads_stale") or [] if x.get("why") == "limit"]
+    s = _read(store / place_id / "scores.json")
+    if not s or s.get("issue_date") != issue.isoformat():
         return []
     return [x for x in s.get("downloads_stale") or [] if x.get("why") == "limit"]
 
 
 def score(place: dict, cfg: dict, store: Path, issue: dt.date | None = None,
           get=om.get_json, fetch_obs=eccc.fetch_daily,
-          fetch_normal=hz.fetch_normal_records, echo=print) -> dict:
-    issue = issue or issue_date_now()
+          fetch_normal=hz.fetch_normal_records, echo=print, now: int | None = None) -> dict:
+    now = int(time.time() if now is None else now)
+    issue = issue or issue_date_now(now)
     pid = place["id"]
     log = refusal_logger(store, pid, echo)
     stale: list[dict] = []
@@ -413,12 +508,29 @@ def score(place: dict, cfg: dict, store: Path, issue: dt.date | None = None,
     scores = build_scores(obs, prev, cfg["deterministic_pool"], issue, long, normal)
     live = live_scores(store, pid, obs)
     ours = consensus_scores(store, pid, obs)
+    issues = ledger_scores(store, pid, obs)
     summary = live_summary(store, pid, live, issue)
     summary["consensus"] = consensus_summary(ours, issue)
-    scores.update(place=pid, computed_at=iso(int(time.time())),
+    summary["issues"] = {slot: consensus_summary(issues[issues["slot"] == slot], issue)
+                         for slot in LEDGER_SLOTS}
+    scores.update(place=pid, computed_at=iso(now),
                   truth=place["truth"], credit=[om.CREDIT, eccc.CREDIT], downloads_stale=stale,
                   live=summary)
+    why = why_unusable(scores)
+    if why:  # keep the last good scores; nothing else is written either
+        old = _read(store / pid / "scores.json")
+        kept = {"issue_date": old.get("issue_date"), "computed_at": old.get("computed_at")} if old else None
+        _write_json(store / pid / REJECTED, {
+            "rejected_at": iso(now), "issue_date": issue.isoformat(), "why": why,
+            "kept": kept, "downloads_stale": stale,
+            "sources_with_history": scores["sources_with_history"],
+            "leads": sorted(int(L) for L in scores["leads"])})
+        err = ScoresRejected(why, kept)
+        log("scores", "scores_rejected", str(err))
+        raise err
     _write_json(store / pid / "scores.json", scores)
+    (store / pid / REJECTED).unlink(missing_ok=True)
     live.to_csv(store / pid / "live_scores.csv", index=False)
     ours.to_csv(store / pid / "live_consensus.csv", index=False)
+    issues.to_csv(store / pid / "live_issues.csv", index=False)
     return {"scores": scores, "live": live}

@@ -3,9 +3,11 @@
 Run from the repo root (the workflows do, after score.py):
     uv run python backend/scripts/missing.py                  # report, exit 0
     uv run python backend/scripts/missing.py --fail-on-limit  # exit 1 if any
+    uv run python backend/scripts/missing.py --status         # exit 3 if any, print nothing
 
 Reads data/store/<place>/scores.json for today's issue date and lists
-downloads_stale (backend/wxc/score.py). Only entries with why "limit" count:
+downloads_stale (backend/wxc/score.py); if today's new scores were rejected
+(scores_rejected.json), that attempt's list instead. Only entries with why "limit" count:
 Open-Meteo refused them for a rate limit, so a fresh runner (another internet
 address) may get them. Single Runs Open-Meteo answered it does not have are
 expected gaps and are never listed. Network errors are listed but do not count.
@@ -37,6 +39,8 @@ def main(argv=None) -> int:
     ap.add_argument("--store", type=Path, default=STORE)
     ap.add_argument("--fail-on-limit", action="store_true",
                     help="exit 1 if rate-limit refusals left data missing")
+    ap.add_argument("--status", action="store_true",
+                    help="print nothing, write no job output; exit 3 if rate-limit refusals left data missing")
     args = ap.parse_args(argv)
 
     places = json.loads((ROOT / "config" / "places.json").read_text())["places"]
@@ -47,6 +51,8 @@ def main(argv=None) -> int:
             got = limit_losses(args.store, p["id"], issue)
             if got:
                 lost[p["id"]] = got
+    if args.status:
+        return 3 if lost else 0
     for pid, items in lost.items():
         print(f"{pid}: {len(items)} downloads refused for a rate limit (issue date {issue}):")
         for x in items:
