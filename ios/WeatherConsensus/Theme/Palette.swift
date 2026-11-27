@@ -63,6 +63,8 @@ nonisolated enum Palette {
     static let windTint = RGB(0xBFE3FF)
     /// Consensus tab hero panel: canvas rgba(9,26,54,0.5) over the navy card.
     static let heroPanel = RGB(0x091A36).over(card, alpha: 0.5)
+    /// Tested card, the one-model tile (canvas rgba(9,26,54,0.25) over the card).
+    static let testedBaseline = RGB(0x091A36).over(card, alpha: 0.25)
 
     // Certainty tiers (canvas dot colours)
     static let tierHigh = RGB(0x3DD68C)

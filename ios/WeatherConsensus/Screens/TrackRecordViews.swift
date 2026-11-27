@@ -178,7 +178,8 @@ struct MissChart: View {
         let value = TrackRecordText.missValue(row.miss, variable, units: units)
         let caption: String? = {
             if row.miss == nil {
-                return row.isConsensus && basis == .live ? TrackRecordText.notRecorded : TrackRecordText.tooFew(row.days)
+                return row.isConsensus && basis == .live && row.days == nil
+                    ? TrackRecordText.notRecorded : TrackRecordText.tooFew(row.days)
             }
             if let days = row.days, days != usual, !row.isConsensus { return TrackRecordText.daysShort(days) }
             return nil

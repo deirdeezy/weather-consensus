@@ -67,6 +67,9 @@ struct ConsensusScreen: View {
                 VStack(spacing: 14) {
                     WeightStep(facts: facts)
                     SureStep(facts: facts)
+                    if let backtest = forecast.backtest {
+                        TestedCard(backtest: backtest, placeName: forecast.place.name, names: facts.names)
+                    }
                     CreditsCard(credits: forecast.credits)
                 }
                 .frame(maxWidth: .infinity)

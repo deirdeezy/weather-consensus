@@ -138,6 +138,17 @@
         }
       }
     },
+    "%lld%% closer than %@ alone on day 1 highs, and %lld%% on lows." : {
+      "comment" : "Tested card. Values: percent closer on highs, model name, percent on lows.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld%% closer than %2$@ alone on day 1 highs, and %3$lld%% on lows."
+          }
+        }
+      }
+    },
     "1 day" : {
 
     },
@@ -164,6 +175,12 @@
     },
     "75% and up" : {
 
+    },
+    "A backtest on archived forecasts, checked against %@." : {
+      "comment" : "Tested card footnote. Value: station name."
+    },
+    "A backtest: each day was rebuilt from archived forecasts using only data from before it, then checked against %@." : {
+      "comment" : "Tested card footnote. Value: station name."
     },
     "A newer forecast needs an app update. Showing the last saved forecast." : {
 
@@ -193,6 +210,17 @@
     },
     "Archived runs" : {
       "comment" : "Track record picker: numbers from each source's archived forecasts"
+    },
+    "Average miss on day 1 highs: %@, %@; %@, %@" : {
+      "comment" : "VoiceOver for the tested card tiles. Values: name, miss with unit, name, miss with unit.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Average miss on day 1 highs: %1$@, %2$@; %3$@, %4$@"
+          }
+        }
+      }
     },
     "Average miss, day %lld highs" : {
       "comment" : "Track record chart heading"
@@ -303,6 +331,17 @@
     "Day %lld habits" : {
       "comment" : "Step 3 heading over the habit list"
     },
+    "Day 1 highs: %lld%% against %@ alone; lows: %lld%%." : {
+      "comment" : "Tested card when the consensus was not closer on both. Values: percents, model.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Day 1 highs: %1$lld%% against %2$@ alone; lows: %3$lld%%."
+          }
+        }
+      }
+    },
     "Delivered by" : {
 
     },
@@ -386,13 +425,13 @@
     "From each source's archived forecasts, scored against the station. Not our own record." : {
 
     },
-    "From our own saved forecasts, scored against %@ over the last %lld days. Our consensus itself is not recorded yet." : {
+    "From our own saved forecasts and the consensus we published, scored against %@ over the last %lld days. Not the archive." : {
       "comment" : "Track record source line for our own record",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "From our own saved forecasts, scored against %1$@ over the last %2$lld days. Our consensus itself is not recorded yet."
+            "value" : "From our own saved forecasts and the consensus we published, scored against %1$@ over the last %2$lld days. Not the archive."
           }
         }
       }
@@ -668,6 +707,9 @@
     "On: the background follows the time of day at the place. Off: a calm, fixed sky." : {
       "comment" : "Settings, under the Living sky switch"
     },
+    "One model alone (%@)" : {
+      "comment" : "Tested card tile. Value: the model's display name."
+    },
     "Open-Meteo, under CC BY 4.0" : {
 
     },
@@ -768,6 +810,17 @@
     "Score" : {
       "comment" : "VoiceOver: track record picker for highs, lows or rain"
     },
+    "Scored %@ to %@, %lld days for day 1 highs. Not our own live record." : {
+      "comment" : "Tested card footnote. Values: first day, last day, days scored.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Scored %1$@ to %2$@, %3$lld days for day 1 highs. Not our own live record."
+          }
+        }
+      }
+    },
     "Settings" : {
 
     },
@@ -843,6 +896,20 @@
     },
     "Temperature not available" : {
 
+    },
+    "Tested on %lld months of real %@ weather" : {
+      "comment" : "Tested card heading. Values: whole months scored, place name.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tested on %1$lld months of real %2$@ weather"
+          }
+        }
+      }
+    },
+    "Tested on a year of real %@ weather" : {
+      "comment" : "Tested card heading. Value: place name."
     },
     "The Inter typeface is used under the SIL Open Font License, Version 1.1. The licence ships inside the app." : {
 
@@ -940,7 +1007,7 @@
 
     },
     "Weather Consensus" : {
-
+      "comment" : "Tested card tile: our blended forecast"
     },
     "Weather Consensus %@" : {
       "comment" : "Settings footer. The value is the version and build, e.g. 1.0 (1)."
@@ -994,6 +1061,9 @@
     },
     "Your settings (units and the living sky) and your places are stored only on this phone. The app never sends them anywhere." : {
 
+    },
+    "average miss, day 1 highs" : {
+      "comment" : "Tested card tile caption; day and 1 kept together"
     },
     "consensus" : {
       "comment" : "Small label under the blended bar in the hero diagram"

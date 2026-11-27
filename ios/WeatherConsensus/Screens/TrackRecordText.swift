@@ -65,8 +65,9 @@ nonisolated struct TrackRecordFacts: Sendable {
             }
         case .live:
             guard let live = record.live else { return [] }
-            consensus = Row(id: Self.consensusID, name: TrackRecordText.consensusName, miss: nil, days: nil,
-                            weight: nil, isConsensus: true)
+            let c = live.consensus?.first { $0.lead == lead }?.miss(variable)
+            consensus = Row(id: Self.consensusID, name: TrackRecordText.consensusName, miss: c?.miss,
+                            days: c?.days, weight: nil, isConsensus: true)
             sources = live.sources.filter { $0.lead == lead }.compactMap { s in
                 guard let m = s.miss(variable) else { return nil }
                 return Row(id: s.id, name: names.name(for: s.id), miss: m.miss, days: m.days, weight: nil,
@@ -282,7 +283,7 @@ nonisolated enum TrackRecordText {
     static func rowLabel(_ row: TrackRecordFacts.Row, _ variable: TrackVariable, units: UnitChoice,
                          basis: TrackBasis) -> String {
         guard let miss = row.miss else {
-            if row.isConsensus && basis == .live { return "\(row.name): \(notRecorded)" }
+            if row.isConsensus && basis == .live && row.days == nil { return "\(row.name): \(notRecorded)" }
             return "\(row.name): \(tooFew(row.days))"
         }
         let value = missValue(miss, variable, units: units) + ValueText.nbsp + spokenUnit(variable, units: units)
@@ -326,7 +327,7 @@ nonisolated enum TrackRecordText {
     static func liveSource(stationName: String?, window: TrackRecord.Window?) -> String {
         let station = stationName ?? String(localized: "the station")
         let days = window?.days ?? 60
-        return String(localized: "From our own saved forecasts, scored against \(station) over the last \(days) days. Our consensus itself is not recorded yet.",
+        return String(localized: "From our own saved forecasts and the consensus we published, scored against \(station) over the last \(days) days. Not the archive.",
                       comment: "Track record source line for our own record")
     }
 

@@ -130,19 +130,21 @@ nonisolated struct TrackRecord: Codable, Equatable, Sendable {
         }
     }
 
-    /// Our own record. `consensus` is not read: it is null until our published consensus is recorded.
+    /// Our own record: each source's saved forecasts and, once scored, our own published consensus
+    /// (`consensus`, null before the first nightly scoring of the consensus log).
     nonisolated struct Live: Codable, Equatable, Sendable {
         let basis: String
         let since: LocalDate?
         let window: Window?
         let minDays: Int
         let days: [LiveDays]
+        let consensus: [ConsensusMiss]?
         let sources: [LiveScore]
 
         enum CodingKeys: String, CodingKey {
             case basis, since, window
             case minDays = "min_days"
-            case days, sources
+            case days, consensus, sources
         }
     }
 }
@@ -157,4 +159,45 @@ nonisolated enum TrackVariable: String, CaseIterable, Sendable {
 /// Which kind of numbers a chart shows. Never both at once.
 nonisolated enum TrackBasis: String, CaseIterable, Sendable {
     case archive, live
+}
+
+/// `backtest` in the place file (docs/JSON_SCHEMA.md): the consensus and one model alone rebuilt day by day
+/// on archived forecasts, each day using only data from before it, scored against the station. Written by
+/// `backend/scripts/backtest.py`; every number is from that script. Optional; dropped if unreadable.
+nonisolated struct Backtest: Codable, Equatable, Sendable {
+    let basis: String
+    let station: PlaceForecast.TruthStation?
+    let scoredFrom: LocalDate
+    let scoredTo: LocalDate
+    let warmupFrom: LocalDate?
+    let method: Method?
+    /// Source id of the one model alone it is compared with (`ecmwf_ifs`).
+    let baseline: String
+    let leads: [Lead]
+
+    enum CodingKeys: String, CodingKey {
+        case basis, station, method, baseline, leads
+        case scoredFrom = "scored_from"
+        case scoredTo = "scored_to"
+        case warmupFrom = "warmup_from"
+    }
+
+    nonisolated struct Method: Codable, Equatable, Sendable {
+        let pastDataOnly: Bool
+        enum CodingKeys: String, CodingKey { case pastDataOnly = "past_data_only" }
+    }
+
+    /// Average miss, deg C or mm, and days scored.
+    nonisolated struct Tested: Codable, Equatable, Sendable {
+        let consensus: Double?
+        let baseline: Double?
+        let days: Int
+    }
+
+    nonisolated struct Lead: Codable, Equatable, Sendable {
+        let lead: Int
+        let high: Tested?
+        let low: Tested?
+        let rain: Tested?
+    }
 }

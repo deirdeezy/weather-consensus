@@ -44,7 +44,9 @@ enum Fixture {
 
     /// A second real file: `kitimat.json` scored and published on this Mac on 27 Nov 2026 00:49 UTC from a copy of
     /// the `data` branch with the track record code (issued_at 2026-11-27T00:49:39Z), before the live file had
-    /// `track_record`. Real data, not sample data. File: `Fixtures/fixture-kitimat-track-record-2026-11-27T0049Z.json`.
+    /// `track_record`. Real data, not sample data. Its `backtest` block was added afterwards with the backend's own
+    /// `publish.backtest_block` from the committed `data/backtest/kitimat.json` (also real, from `backtest.py`).
+    /// File: `Fixtures/fixture-kitimat-track-record-2026-11-27T0049Z.json`.
     static let trackRecordName = "fixture-kitimat-track-record-2026-11-27T0049Z"
 
     static func trackRecordData() throws -> Data {
