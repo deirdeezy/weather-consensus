@@ -40,6 +40,102 @@ nonisolated struct StationObservation: Codable, Equatable, Sendable {
     let soFarSince: Date?
     /// How many hourly records the so-far values cover.
     let soFarHours: Int?
+    /// Which record each current value came from (`values_from`, since 26 Nov 2026). nil in older blocks,
+    /// where every value is from the hourly record at `observedAt`.
+    let valuesFrom: ValuesFrom?
+
+    /// `values_from`: the minute record's and the newest hourly record's times, and per current value which
+    /// one it came from. Readers must accept other source names (docs/JSON_SCHEMA.md).
+    nonisolated struct ValuesFrom: Codable, Equatable, Sendable {
+        let minuteAt: Date?
+        let hourlyAt: Date?
+        let temp: String?
+        let dewPoint: String?
+        let humidity: String?
+        let wind: String?
+        let gust: String?
+
+        init(minuteAt: Date?, hourlyAt: Date?, temp: String? = nil, dewPoint: String? = nil,
+             humidity: String? = nil, wind: String? = nil, gust: String? = nil) {
+            self.minuteAt = minuteAt
+            self.hourlyAt = hourlyAt
+            self.temp = temp
+            self.dewPoint = dewPoint
+            self.humidity = humidity
+            self.wind = wind
+            self.gust = gust
+        }
+
+        init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            minuteAt = c.lenient(Date.self, .minuteAt)
+            hourlyAt = c.lenient(Date.self, .hourlyAt)
+            temp = c.lenient(String.self, .temp)
+            dewPoint = c.lenient(String.self, .dewPoint)
+            humidity = c.lenient(String.self, .humidity)
+            wind = c.lenient(String.self, .wind)
+            gust = c.lenient(String.self, .gust)
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case minuteAt = "minute_at"
+            case hourlyAt = "hourly_at"
+            case temp
+            case dewPoint = "dew_point"
+            case humidity, wind, gust
+        }
+    }
+
+    /// A current value the card shows, and where it came from.
+    nonisolated enum CurrentValue: CaseIterable, Sendable {
+        case temp, dewPoint, humidity, wind, gust
+    }
+
+    private func isShown(_ value: CurrentValue) -> Bool {
+        switch value {
+        case .temp: temp != nil
+        case .dewPoint: dewPoint != nil
+        case .humidity: humidity != nil
+        case .wind: windKMH != nil
+        case .gust: gustKMH != nil
+        }
+    }
+
+    /// True when the value came from the minute record (and that record's time is known).
+    func isFromMinuteRecord(_ value: CurrentValue) -> Bool {
+        guard let valuesFrom, valuesFrom.minuteAt != nil else { return false }
+        let from: String? = switch value {
+        case .temp: valuesFrom.temp
+        case .dewPoint: valuesFrom.dewPoint
+        case .humidity: valuesFrom.humidity
+        case .wind: valuesFrom.wind
+        case .gust: valuesFrom.gust
+        }
+        return from == "minute"
+    }
+
+    /// The time of the oldest value on the card: the age the card shows and dims by. `observedAt` is the
+    /// newest record used, so when temperature comes from a minute record and pressure from the hourly
+    /// record before it, the card must not call everything as new as the temperature.
+    var shownAsOf: Date {
+        guard let valuesFrom else { return observedAt }
+        var times: [Date] = []
+        if let minuteAt = valuesFrom.minuteAt, CurrentValue.allCases.contains(where: { isShown($0) && isFromMinuteRecord($0) }) {
+            times.append(minuteAt)
+        }
+        let hourlyShown = CurrentValue.allCases.contains { isShown($0) && !isFromMinuteRecord($0) }
+            || pressureKPA != nil || pressureTendency != nil || precip1hMM != nil
+            || highSoFar != nil || lowSoFar != nil || precipSoFarMM != nil
+        if hourlyShown { times.append(valuesFrom.hourlyAt ?? observedAt) }
+        return times.min() ?? observedAt
+    }
+
+    /// The values that are newer than `shownAsOf`, and their time: nil when every value is as old as the oldest.
+    var newerValues: (values: [CurrentValue], at: Date)? {
+        guard let minuteAt = valuesFrom?.minuteAt, minuteAt > shownAsOf else { return nil }
+        let values = CurrentValue.allCases.filter { isShown($0) && isFromMinuteRecord($0) }
+        return values.isEmpty ? nil : (values, minuteAt)
+    }
 
     nonisolated struct Station: Codable, Equatable, Sendable {
         let network: String?
@@ -86,6 +182,7 @@ nonisolated struct StationObservation: Codable, Equatable, Sendable {
         case precipSoFarMM = "precip_so_far_mm"
         case soFarSince = "so_far_since"
         case soFarHours = "so_far_hours"
+        case valuesFrom = "values_from"
     }
 
     init(observedAt: Date, fetchedAt: Date? = nil, source: String? = nil, station: Station? = nil,
@@ -93,7 +190,7 @@ nonisolated struct StationObservation: Codable, Equatable, Sendable {
          windDirDeg: Double? = nil, gustKMH: Double? = nil, pressureKPA: Double? = nil,
          pressureTendency: String? = nil, pressureChange3hKPA: Double? = nil, precip1hMM: Double? = nil,
          highSoFar: Double? = nil, lowSoFar: Double? = nil, precipSoFarMM: Double? = nil,
-         soFarSince: Date? = nil, soFarHours: Int? = nil) {
+         soFarSince: Date? = nil, soFarHours: Int? = nil, valuesFrom: ValuesFrom? = nil) {
         self.observedAt = observedAt
         self.fetchedAt = fetchedAt
         self.source = source
@@ -113,6 +210,7 @@ nonisolated struct StationObservation: Codable, Equatable, Sendable {
         self.precipSoFarMM = precipSoFarMM
         self.soFarSince = soFarSince
         self.soFarHours = soFarHours
+        self.valuesFrom = valuesFrom
     }
 
     init(from decoder: any Decoder) throws {
@@ -136,6 +234,7 @@ nonisolated struct StationObservation: Codable, Equatable, Sendable {
         precipSoFarMM = c.lenient(Double.self, .precipSoFarMM)
         soFarSince = c.lenient(Date.self, .soFarSince)
         soFarHours = c.lenient(Int.self, .soFarHours)
+        valuesFrom = c.lenient(ValuesFrom.self, .valuesFrom)
     }
 }
 

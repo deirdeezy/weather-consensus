@@ -35,10 +35,8 @@ struct ConsensusScreen: View {
             }
             .refreshable { await model.load() }
         }
-        // The Weather tab loads on appear; this covers opening the app straight onto this tab.
-        .task {
-            if model.forecast == nil && !model.isLoading { await model.load() }
-        }
+        // Every tab checks on appear, so opening the app straight onto this one also gets a due file.
+        .task { await model.refreshIfDue() }
     }
 
     @ViewBuilder

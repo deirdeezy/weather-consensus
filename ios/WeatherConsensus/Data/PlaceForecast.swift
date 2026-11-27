@@ -240,3 +240,22 @@ nonisolated struct LocalDate: Codable, Hashable, Comparable, Sendable, CustomStr
         (lhs.year, lhs.month, lhs.day) < (rhs.year, rhs.month, rhs.day)
     }
 }
+
+extension PlaceForecast.Day {
+    /// As the synthesized decoder, plus one rule: Certainty is about the high, so a day with no high
+    /// shows no Certainty and no tier, whatever the file says (docs/JSON_SCHEMA.md; files from before
+    /// 27 Nov 2026 could have both).
+    nonisolated init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let high = try c.decodeIfPresent(Double.self, forKey: .high)
+        self.init(day: try c.decode(Int.self, forKey: .day),
+                  date: try c.decode(LocalDate.self, forKey: .date),
+                  high: high,
+                  low: try c.decodeIfPresent(Double.self, forKey: .low),
+                  precipMM: try c.decodeIfPresent(Double.self, forKey: .precipMM),
+                  precipChance: try c.decodeIfPresent(Int.self, forKey: .precipChance),
+                  certainty: high == nil ? nil : try c.decodeIfPresent(Int.self, forKey: .certainty),
+                  tier: high == nil ? nil : try c.decodeIfPresent(String.self, forKey: .tier),
+                  weights: try c.decode([PlaceForecast.Weight].self, forKey: .weights))
+    }
+}

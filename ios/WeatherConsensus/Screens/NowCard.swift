@@ -5,7 +5,8 @@ import SwiftUI
 /// `Main.dc.html`) minus what the beta leaves out (owner decision, 25 Nov 2026): no condition text or icon,
 /// no today forecast, no hourly strip, no summary line. Observation only.
 ///
-/// - Always labelled "Observed at <station>, X min ago".
+/// - Always labelled "Observed at <station>, X min ago", X counted from the oldest value shown. When some values
+///   come from a newer minute record, a second line names them and their age ("Newer: temperature and humidity, 2 min ago").
 /// - Over 3 h old: values dimmed, "Last observation X h ago". Over 12 h: values hidden, label only.
 /// - Units follow Settings. Clock times use the phone's own time zone.
 /// - Feels like: ECCC wind chill or humidex (`FeelsLike`), otherwise the air temperature.
@@ -20,7 +21,8 @@ struct NowCard: View {
     @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        let age = ObservationAge(observedAt: observation.observedAt, now: now)
+        // The card's age is its oldest value's (minute and hourly records can differ by up to an hour).
+        let age = ObservationAge(observedAt: observation.shownAsOf, now: now)
         VStack(alignment: .leading, spacing: 14) {
             header(age: age)
             if age.state != .hidden {
@@ -57,7 +59,7 @@ struct NowCard: View {
                 .tracking(0.9)
                 .foregroundStyle(Color(Palette.textSecondary))
                 .accessibilityAddTraits(.isHeader)
-            ForEach(NowText.label(observation, age: age), id: \.self) { line in
+            ForEach(NowText.label(observation, age: age) + NowText.newerLine(observation, now: now, age: age), id: \.self) { line in
                 Text(verbatim: line)
                     .font(.inter(13.5, .semibold, relativeTo: .subheadline))
                     .foregroundStyle(Color(Palette.textBody))
@@ -281,6 +283,34 @@ nonisolated enum NowText {
         }
     }
 
+    /// "Newer: temperature and humidity, 2 min ago": the values from a minute record newer than the oldest
+    /// value on the card. Empty when every value is as old as the label says, or the values are hidden.
+    static func newerLine(_ observation: StationObservation, now: Date, age: ObservationAge) -> [String] {
+        guard age.state != .hidden, let newer = observation.newerValues else { return [] }
+        let newerAge = ObservationAge(observedAt: newer.at, now: now)
+        guard newerAge.minutes != age.minutes else { return [] }
+        let fields = newer.values.map(name).formatted(.list(type: .and))
+        if newerAge.minutes < 1 {
+            return [String(localized: "Newer: \(fields), just now", comment: "Now card, values from a newer record. Value: list of values, e.g. temperature and humidity")]
+        }
+        if newerAge.minutes < 60 {
+            return [String(localized: "Newer: \(fields), \(newerAge.minutes)\u{00A0}min ago",
+                           comment: "Now card, values from a newer record. Values: list of values, minutes since that record")]
+        }
+        return [String(localized: "Newer: \(fields), \(newerAge.hours)\u{00A0}h ago",
+                       comment: "Now card, values from a newer record. Values: list of values, whole hours since that record")]
+    }
+
+    static func name(_ value: StationObservation.CurrentValue) -> String {
+        switch value {
+        case .temp: String(localized: "temperature", comment: "Now card, in the list of newer values")
+        case .dewPoint: String(localized: "dew point", comment: "Now card, in the list of newer values")
+        case .humidity: String(localized: "humidity", comment: "Now card, in the list of newer values")
+        case .wind: String(localized: "wind", comment: "Now card, in the list of newer values")
+        case .gust: String(localized: "gusts", comment: "Now card, in the list of newer values")
+        }
+    }
+
     /// "4" or "−2": whole degrees, as the canvas draws the big number. The unit is drawn beside it.
     static func bigTemperature(_ celsius: Double?, unit: TemperatureUnit) -> String {
         let short = ValueText.shortTemperature(celsius, in: unit)
@@ -450,5 +480,26 @@ nonisolated enum NowText {
         }
     }
     .background(SkyView(style: SkyStyle(time: .day, weather: nil)))
+}
+
+/// Temperature and humidity from a minute record, the rest from the hourly record before it: the real Kitimat
+/// Forest Ave block of 26 Nov 2026 01:07 UTC (docs/JSON_SCHEMA.md), seen at 01:40 UTC.
+#Preview("Now card, values from two records") {
+    let model = ForecastScreenModel.previewFixture()
+    let iso = ISO8601DateFormatter()
+    let observation = StationObservation(
+        observedAt: iso.date(from: "2026-11-26T01:07:00Z")!,
+        station: .init(network: "ECCC", id: "1064324", name: "Kitimat Forest Ave", distanceKM: 2.0),
+        temp: 3.7, dewPoint: 3.7, humidity: 100, windKMH: 0.3, windDirDeg: 190, gustKMH: 2.6, pressureKPA: 99.98,
+        precip1hMM: 0.0, highSoFar: 4.0, lowSoFar: 1.9, soFarSince: iso.date(from: "2026-11-25T06:00:00Z")!, soFarHours: 18,
+        valuesFrom: .init(minuteAt: iso.date(from: "2026-11-26T01:07:00Z")!, hourlyAt: iso.date(from: "2026-11-26T01:00:00Z")!,
+                          temp: "minute", dewPoint: "hourly", humidity: "minute", wind: "hourly", gust: "hourly"))
+    ScrollView {
+        if let forecast = model.forecast {
+            NowCard(observation: observation, place: forecast.place, now: iso.date(from: "2026-11-26T01:40:00Z")!)
+                .padding(16)
+        }
+    }
+    .background(SkyView(style: SkyStyle(time: .night, weather: nil)))
 }
 #endif

@@ -280,3 +280,70 @@ struct FeelsLikeTests {
         #expect(NowText.feelsValue(.humidex(33.98), unit: .celsius) == "34°")
     }
 }
+
+/// Review finding 10 (27 Nov 2026): temperature can come from a minute record and pressure from the hourly
+/// record before it. The card's age is its oldest value's, and the newer values are named with their own age.
+/// Times from the real 26 Nov 2026 01:07 UTC block (docs/JSON_SCHEMA.md): minute 01:07, hourly 01:00.
+@Suite("Now card ages when records differ")
+struct NowCardMixedAgeTests {
+    private static let mixed: [String: Any] = [
+        "observed_at": "2026-11-26T01:07:00Z",
+        "values_from": ["minute_at": "2026-11-26T01:07:00Z", "hourly_at": "2026-11-26T01:00:00Z",
+                        "temp": "minute", "dew_point": "hourly", "humidity": "minute", "wind": "hourly", "gust": "hourly"],
+    ]
+    private func at(_ text: String) -> Date { ISO8601DateFormatter().date(from: text)! }
+
+    private func lines(_ obs: StationObservation, now: String) -> [String] {
+        let age = ObservationAge(observedAt: obs.shownAsOf, now: at(now))
+        return NowText.label(obs, age: age) + NowText.newerLine(obs, now: at(now), age: age)
+    }
+
+    @Test func labelCountsFromTheOldestValueAndNamesTheNewerOnes() throws {
+        let obs = try NowFixture.observation(Self.mixed)
+        #expect(obs.observedAt == at("2026-11-26T01:07:00Z"))
+        #expect(obs.shownAsOf == at("2026-11-26T01:00:00Z"))
+        #expect(lines(obs, now: "2026-11-26T01:40:00Z") ==
+                ["Observed at Kitimat Forest Ave, 40\(nbsp)min ago", "Newer: temperature and humidity, 33\(nbsp)min ago"])
+        #expect(lines(obs, now: "2026-11-26T01:07:20Z") ==
+                ["Observed at Kitimat Forest Ave, 7\(nbsp)min ago", "Newer: temperature and humidity, just now"])
+    }
+
+    @Test func dimmingFollowsTheOldestValue() throws {
+        // Hourly records stopped at 01:00 while minute records kept coming (a 22:00-style station gap).
+        var block = Self.mixed
+        block["observed_at"] = "2026-11-26T04:30:00Z"
+        block["values_from"] = (Self.mixed["values_from"] as! [String: Any]).merging(["minute_at": "2026-11-26T04:30:00Z"]) { $1 }
+        let obs = try NowFixture.observation(block)
+        let age = ObservationAge(observedAt: obs.shownAsOf, now: at("2026-11-26T04:35:00Z"))
+        #expect(age.state == .dimmed)  // was fresh when the card went by observed_at
+        #expect(lines(obs, now: "2026-11-26T04:35:00Z") ==
+                ["Observed at Kitimat Forest Ave", "Last observation 3\(nbsp)h ago", "Newer: temperature and humidity, 5\(nbsp)min ago"])
+    }
+
+    @Test func oneRecordOrAnOlderBlockGivesOneAge() throws {
+        let hourlyOnly = try NowFixture.observation([
+            "observed_at": "2026-11-26T01:00:00Z",
+            "values_from": ["minute_at": NSNull(), "hourly_at": "2026-11-26T01:00:00Z", "temp": "hourly",
+                            "dew_point": "hourly", "humidity": "hourly", "wind": "hourly", "gust": "hourly"]])
+        #expect(hourlyOnly.shownAsOf == at("2026-11-26T01:00:00Z"))
+        #expect(lines(hourlyOnly, now: "2026-11-26T01:40:00Z") == ["Observed at Kitimat Forest Ave, 40\(nbsp)min ago"])
+        let old = try NowFixture.observation()  // no values_from: every value from the hourly record
+        #expect(old.shownAsOf == NowFixture.observedAt && old.newerValues == nil)
+    }
+
+    @Test func minuteValuesAloneUseTheMinuteTime() throws {
+        // Only minute values on the card (everything hourly is missing): its age is the minute record's.
+        var block = Self.mixed
+        for key in ["dew_point", "wind_kmh", "gust_kmh", "pressure_kpa", "pressure_tendency", "precip_1h_mm",
+                    "high_so_far", "low_so_far", "precip_so_far_mm"] { block[key] = NSNull() }
+        let obs = try NowFixture.observation(block)
+        #expect(obs.shownAsOf == at("2026-11-26T01:07:00Z"))
+        #expect(obs.newerValues == nil)
+    }
+
+    @Test func hiddenCardHasNoNewerLine() throws {
+        let obs = try NowFixture.observation(Self.mixed)
+        #expect(lines(obs, now: "2026-11-26T14:00:00Z") ==
+                ["Observed at Kitimat Forest Ave", "Last observation 13\(nbsp)h ago"])
+    }
+}

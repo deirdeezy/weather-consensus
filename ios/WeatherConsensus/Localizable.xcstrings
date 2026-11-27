@@ -610,6 +610,31 @@
     "NOAA GFS" : {
       "comment" : "Source name, do not translate"
     },
+    "Newer: %@, %lld h ago" : {
+      "comment" : "Now card, values from a newer record. Values: list of values, whole hours since that record",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Newer: %1$@, %2$lld h ago"
+          }
+        }
+      }
+    },
+    "Newer: %@, %lld min ago" : {
+      "comment" : "Now card, values from a newer record. Values: list of values, minutes since that record",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Newer: %1$@, %2$lld min ago"
+          }
+        }
+      }
+    },
+    "Newer: %@, just now" : {
+      "comment" : "Now card, values from a newer record. Value: list of values, e.g. temperature and humidity"
+    },
     "No account" : {
 
     },
@@ -1083,6 +1108,9 @@
     "degrees Fahrenheit" : {
 
     },
+    "dew point" : {
+      "comment" : "Now card, in the list of newer values"
+    },
     "east" : {
 
     },
@@ -1095,11 +1123,17 @@
     "from the %@" : {
       "comment" : "VoiceOver: wind direction"
     },
+    "gusts" : {
+      "comment" : "Now card, in the list of newer values"
+    },
     "gusts %@" : {
       "comment" : "VoiceOver: wind gust with unit"
     },
     "gusts %lld" : {
       "comment" : "Now card: wind gust, number only, as on the canvas"
+    },
+    "humidity" : {
+      "comment" : "Now card, in the list of newer values"
     },
     "inches" : {
 
@@ -1162,6 +1196,9 @@
     "southwest" : {
 
     },
+    "temperature" : {
+      "comment" : "Now card, in the list of newer values"
+    },
     "the station" : {
       "comment" : "Now card: station with no name in the file"
     },
@@ -1176,6 +1213,9 @@
     },
     "west-southwest" : {
 
+    },
+    "wind" : {
+      "comment" : "Now card, in the list of newer values"
     }
   },
   "version" : "1.0"

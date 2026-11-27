@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var settings: AppSettings
     // Kept per scene, so the open tab survives folding and unfolding iPhone Duo and app relaunches.
     @SceneStorage("selectedTab") private var selection: TabID = .weather
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
     @State private var settingsPath: [SettingsPage] = []
 
@@ -58,6 +59,10 @@ struct ContentView: View {
         }
         .environment(\.unitChoice, settings.units)
         .environment(\.livingSky, settings.livingSky)
+        // On launch and whenever the app comes back to the foreground, on whichever tab is open.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            if phase == .active { Task { await model.refreshIfDue() } }
+        }
         #if DEBUG
         .onAppear {
             if let tab = DebugLaunch.tab { selection = tab }

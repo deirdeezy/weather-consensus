@@ -45,7 +45,7 @@ struct WeatherScreen: View {
             }
             .refreshable { await model.load() }
         }
-        .task { await model.load() }
+        .task { await model.refreshIfDue() }
     }
 
     // MARK: Layout

@@ -35,9 +35,7 @@ struct PlacesScreen: View {
             if model.forecast == nil { NoForecastView(model: model, style: style) }
         }
         .refreshable { await model.load() }
-        .task {
-            if model.forecast == nil && !model.isLoading { await model.load() }
-        }
+        .task { await model.refreshIfDue() }
     }
 
     private var style: SkyStyle {

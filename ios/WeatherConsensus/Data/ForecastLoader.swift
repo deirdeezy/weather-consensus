@@ -69,7 +69,8 @@ nonisolated struct ForecastLoader: Sendable {
         }
     }
 
-    /// Downloads the latest file for a place. On success the file replaces the saved copy.
+    /// Downloads the latest file for a place. On success the file replaces the saved copy, unless the saved
+    /// copy was issued later (then the saved copy is returned and kept).
     /// On any failure (offline, bad answer, unknown schema version) the saved copy is returned
     /// and the problem is logged.
     func load(placeID: String) async -> LoadResult {
@@ -89,6 +90,12 @@ nonisolated struct ForecastLoader: Sendable {
             forecast = try ForecastDecoder.decode(data)
         } catch {
             return fallback(placeID: placeID, problem: error)
+        }
+
+        // A cache somewhere on the way can still hand out an older file: never let it replace a newer one.
+        if let saved = store.savedForecast(placeID: placeID), saved.issuedAt > forecast.issuedAt {
+            Self.log.notice("Downloaded \(placeID, privacy: .public) is older than the saved file; kept the saved one")
+            return LoadResult(forecast: saved, origin: .savedCopy, problem: nil)
         }
 
         do throws(LoadProblem) {
