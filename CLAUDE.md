@@ -48,12 +48,12 @@ iOS weather app (SwiftUI) that blends up to 12 forecast sources, weights each by
 
 ## Layout
 ```
-backend/wxc/        Python package: daily.py, consensus.py, certainty.py, eccc.py, openmeteo.py, obs.py
+backend/wxc/        Python package: daily.py, consensus.py, certainty.py, eccc.py, openmeteo.py, obs.py, swob_archive.py
 backend/scripts/    backtest.py (reproduces the pilot), horizon.py, refresh.py, obs.py, score.py, publish.py, refusals.py
 backend/ci/         job scripts for .github/workflows (hourly.sh, nightly.sh, save_data.sh), local_test.sh
 config/             places.json, sources.json
 data/cache/         pilot downloads (git-ignored)
-docs/               BUILD_PLAN.md, ALGORITHM.md, XCODE.md, JSON_SCHEMA.md (+ place-v1.schema.json), HOSTING.md
+docs/               BUILD_PLAN.md, ALGORITHM.md, XCODE.md, JSON_SCHEMA.md (+ place-v1.schema.json), HOSTING.md, research/
 public/             published JSON per place (git-ignored; deployed to GitHub Pages)
 .github/workflows/  refresh.yml (hourly), nightly.yml
 tests/              pytest

@@ -140,6 +140,27 @@ One line per slot, compact (no spaces). Real values, but this line was made on t
 - Size, Kitimat with 9 models and the normal: 2,832 bytes a line, **5,663 bytes a day** (measured 27 Nov 2026 on that copy), about 2 MB a year.
 - Scored nightly by `score.py` exactly like the consensus log, per slot: `live_issues.csv` (one row per line and lead, with `slot` and `slot_start`) and `scores.json` `live.issues.morning` and `live.issues.evening` (same measures, window and 20-day minimum as `live.consensus`).
 
+### Shadow collection (not in the place file)
+Saved on the `data` branch from 27 Nov 2026 for hourly forecasts, gusts and conditions later (`docs/research/HOURLY_AND_CONDITIONS.md`). Nothing below is published, scored or read by `publish.py`.
+
+**Extra hourly variables**, `data/store/<place>/hourly/<YYYY-MM-DD>/<HHMMSS>Z_<source>.json` (`backend/wxc/refresh.py`), one file per deterministic pull:
+
+| Field | Meaning |
+|---|---|
+| `source`, `api_model` | Pilot key and the id sent to Open-Meteo, as in the main pull. |
+| `kind` | `extra_hourly`. |
+| `fetched_at` | UTC time of the call (same as the main pull it follows). |
+| `run` | The run's start (UTC): the newest run time of the source's metadata paths, or the fetch time when no metadata could be read. |
+| `window` | `{"start", "end"}`: lead 0 to 144 h of that run, whole UTC hours (`start_hour`, `end_hour`). |
+| `variables` | `wind_speed_10m`, `wind_direction_10m`, `wind_gusts_10m`, `cloud_cover`, `cloud_cover_low`, `cloud_cover_mid`, `cloud_cover_high`, `weather_code`, `snowfall`, `relative_humidity_2m`, `visibility`. A model without one sends nulls. |
+| `runs`, `url`, `credit` | As in the main pull. |
+| `response` | Open-Meteo's answer as sent (hourly, UTC). |
+
+**Station hourly records**, `data/store/<place>/swob/` (`backend/wxc/swob_archive.py`), every field of every hourly SWOB record from the place's approved station:
+- `fields.json`: `const` (the first value seen for each field that is almost always the same: units `-uom`, quality flags `-qa`, data flags, station names and ids, provider, dataset), `sets` (lists of the `const` keys known when records were written) and `geometry` (the station's coordinates as sent).
+- `hourly-<YYYY-MM>.jsonl`: one line per observation hour, sorted, `{"t", "c", "v", "absent"?, "geometry"?}`. `t` is the observation time (UTC); `c` indexes `sets`; `v` holds every other field as sent, plus any constant field whose value differs; `absent` lists `sets[c]` keys the record did not carry; `geometry` only if it differs.
+- Full record = `const` values for the keys in `sets[c]`, less `absent`, updated with `v` (`expand()`). Checked on 696 real records (29 Oct to 27 Nov 2026): every one rebuilt exactly.
+
 ## The backtest file and `backtest_file` (optional)
 The numbers behind the "Tested on real Kitimat weather" card live in their own file on the same site, `backtest/<place>.json` (for example `https://deirdeezy.github.io/weather-consensus/backtest/kitimat.json`), because they change only when the backtest is run again. Formal schema: `docs/backtest-v1.schema.json`. Written by `backend/scripts/backtest.py` to `data/backtest/<place>.json` (committed) and published by `publish.py` compact with sorted keys, so the same results always give the same bytes. Only places with a backtest have it (Kitimat today). Every number is computed by that script; nothing is added by hand.
 

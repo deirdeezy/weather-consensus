@@ -1,6 +1,6 @@
 # Build plan
 
-Current stage: **Stage 3: iPhone app, Weather, Consensus, Places, Settings and About built and pushed (steps 3 to 5); beta Now card and the step 5b fixes built (step 5c); runs started by a Cloudflare Worker and Now from the minute record (step 5d); nightly retry after Open-Meteo rate-limit refusals (step 5e); app icon, launch screen and a first run against live data (step 6); Consensus tab track record, habit fixes and tested card, with a separate backtest file (step 7); fixes from the independent review, batch 1 (step 7b)** (27 Nov 2026 UTC). Stage 2 is live and the shadow run continues alongside. Public repo https://github.com/deirdeezy/weather-consensus; hourly and nightly workflows on; `kitimat.json` at https://deirdeezy.github.io/weather-consensus/kitimat.json. The workflows are now the only writers of the `data` branch; the local `data/store/` is an old copy. Design: `docs/HOSTING.md`.
+Current stage: **Stage 3: iPhone app, Weather, Consensus, Places, Settings and About built and pushed (steps 3 to 5); beta Now card and the step 5b fixes built (step 5c); runs started by a Cloudflare Worker and Now from the minute record (step 5d); nightly retry after Open-Meteo rate-limit refusals (step 5e); app icon, launch screen and a first run against live data (step 6); Consensus tab track record, habit fixes and tested card, with a separate backtest file (step 7); fixes from the independent review, batch 1 (step 7b)** (27 Nov 2026 UTC). Stage 4 prep: hourly and conditions research done and shadow collection started (27 Nov 2026; nothing published). Stage 2 is live and the shadow run continues alongside. Public repo https://github.com/deirdeezy/weather-consensus; hourly and nightly workflows on; `kitimat.json` at https://deirdeezy.github.io/weather-consensus/kitimat.json. The workflows are now the only writers of the `data` branch; the local `data/store/` is an old copy. Design: `docs/HOSTING.md`.
 
 Repo privacy fix (done 24 Nov 2026): local history rewritten so no commit holds personal details, and every commit's author and committer is the GitHub noreply identity. The rewritten history is what went public: the GitHub repo was created from it on 25 Nov 2026 (Stage 2 step 6).
 
@@ -190,8 +190,27 @@ Then:
 ## Stage 4: more places, more weather, alerts
 - Terrace, Lakelse Lake, MK Bay Marina (owner to confirm Lakelse truth and MK Bay coordinates).
 - Wind, gusts, snow vs rain, condition icon, hourly: each tested on history before shipping.
+- Hourly and conditions research (done 27 Nov 2026): `docs/research/HOURLY_AND_CONDITIONS.md` (truth sources, model variables and history, measured hourly skill, design and build plan). Owner decisions (27 Nov 2026):
+  - Cloud truth: GOES-18 Cloud Cover Layers, provisionally; validate across seasons from its archive (May 2023 on), summer especially, before conditions ship.
+  - Airport station reports (NAV CANADA): internal validation only; never in the repo or on the `data` branch, never published, until NAV CANADA rights are confirmed.
+  - Hourly to 48 h, 3-hour blocks to 96 h, daily from day 5.
+  - Conditions: only clear, partly cloudy, cloudy, rain, snow, mixed. Fog, showers, thunder and freezing rain later through official ECCC warnings.
+  - Gusts hidden until 60 days of saved station gusts and a backtest.
+- Shadow collection (step 1 of the research build plan; built 27 Nov 2026; nothing published, nothing in the app):
+  - Station records: each hourly run saves every field of Kitimat Forest Ave's real-time SWOB hourly records (gusts, rain sensor, snow depth included) to `<place>/swob/` on the `data` branch, compact and lossless (`backend/wxc/swob_archive.py`). Asks for the last 3 hours, back to the oldest missing hour of the last 48 after a refusal or a late record, 29 days on the first run. One more ECCC request an hour (72 a day in all).
+  - Extra hourly variables: after each deterministic pull, one call for wind speed, direction and gusts, cloud total, low, mid and high, weather code, snowfall, humidity and visibility, lead 0 to 144 h of that run, saved to `<place>/hourly/` (`backend/wxc/refresh.py`; 1.1 weighted calls each, measured). A refused extra call is logged (`extra`) and never fails the run.
+  - Pacing: at most 2 counted Open-Meteo calls in flight per process, 0.5 s between starts; "Too many concurrent requests" retried like the minutely limit (`backend/wxc/openmeteo.py`).
+  - Guardrails: on the same inputs (a copy of the `data` branch with that night's downloads, every source served the same saved runs), old and new code wrote a byte-identical `kitimat.json`, backtest file, `scores.json`, `live_scores.csv`, `live_consensus.csv`, `live_issues.csv`, consensus log, issue ledger, `now.json` and `state.json`; refusal lines identical apart from their clock times. `backtest.py` and `--align` output identical (day 1 high 1.004, low 1.008).
+  - Real-data checks: 696 station records (29 Oct to 27 Nov 2026) saved and rebuilt exactly; 2.4 KB raw a line. Extra-variable files about 10.6 KB raw each.
+  - Checks: backend 193 pytest pass (30 new: 29 in `tests/test_shadow_collection.py` for compaction and exact rebuild, constant fields that change or arrive later, duplicates and changed records, other stations and partner networks, month files, paging, the 3-hour, 48-hour-repair and 29-day request windows, a refused request and the hours it missed, extra-call variables, window and folder, a refused extra call, scoring unchanged, pacing gaps and in-flight limit, the concurrent-request retry; 1 in `tests/test_publish.py`: shadow files leave the place file byte-identical). `local_test.sh` 32 of 32 on the new code (first hourly run 32 s with the 29-day station backfill of 696 records, the next 4 s). `actionlint` not rerun: no workflow changed.
+  - Not checked yet: growth and calls a day on GitHub (measured after the first real runs, below).
 - Warnings: ECCC alerts (Canada), NWS (US). Radar source.
 - Push alerts (CloudKit, TestFlight early), morning summary. TestFlight beta.
+
+## Open items
+- ECMWF IFS in Previous Runs (found 27 Nov 2026): at Kitimat, `ecmwf_ifs` `temperature_2m_previous_day1` starts 1 Oct 2025 (cloud and wind 2 Jan 2025), but `docs/ALGORITHM.md` describes a pilot from Jan 2024 with ECMWF in it. Find out which id or source the pilot's early ECMWF history came from. The nightly 200-day window (back to 11 May 2026 today) is not affected; multi-year backtests are, including the hourly ones planned.
+- Open-Meteo concurrent-request limit (measured 27 Nov 2026, not in its docs): HTTP 429 "Too many concurrent requests" with about 10 calls in flight from one address. Paced since 27 Nov 2026; still possible when other users of a shared runner address are busy. Watch the refusal log for it.
+- The `data` branch README is copied only when the branch is seeded (`backend/ci/seed_data_branch.sh`); the copy on the branch does not list the shadow-collection folders yet (the one on `main` does).
 
 ## Open questions for the owner
 - Version 1 of the JSON starts at tomorrow (day 1 = lead 1, the first day the backtest scores). Should the app also show today? That needs its own test first.

@@ -9,6 +9,8 @@ Saved state for the hourly and nightly jobs on `main` (`.github/workflows/`). Th
 - `<place>/history/normal_records_<id>.json`: station records for the 1991 to 2020 normal.
 - `<place>/scores.json`: nightly habit fixes, errors and weights per source, lead and variable.
 - `<place>/now.json`: the latest observation at the place's approved station (ECCC real-time SWOB), replaced every hour; places without an approved station have none.
+- `<place>/hourly/<YYYY-MM-DD>/<HHMMSS>Z_<source>.json`: shadow collection (from 27 Nov 2026), the extra hourly variables (wind, gusts, cloud, weather code, snowfall, humidity, visibility) for lead 0 to 144 h of each deterministic run pulled. Not used by the forecast yet.
+- `<place>/swob/`: shadow collection (from 27 Nov 2026), every field of every hourly record from the place's approved station (ECCC real-time SWOB keeps only about 30 days). `fields.json` plus `hourly-<YYYY-MM>.jsonl`; format in `docs/JSON_SCHEMA.md` on `main`.
 - `<place>/live_scores.csv`: every stored pull scored against the station by lead (the shadow-run record).
 - `refusals.jsonl`: every refused or failed call, one line each.
 
