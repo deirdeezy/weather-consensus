@@ -130,13 +130,20 @@ def run():
     print("== pcp: amount miss in mm, chance of precipitation Brier (lower is better)")
     print(P.round(3).to_string(index=False), "\n")
     A = pd.concat(calib)
-    for name in ("det", "det+normal"):
-        a = A[(A["var"] == "tmax") & (A.variant == name)]
+    T = A[A["var"] == "tmax"]
+    # What ships (docs/ALGORITHM.md): models only for days 1 to 7, the normal joins from day 8.
+    shipped = pd.concat([T[(T.variant == "det") & (T.lead < hz.NORMAL_FROM_LEAD)],
+                         T[(T.variant == "det+normal") & (T.lead >= hz.NORMAL_FROM_LEAD)]]).assign(variant="shipped")
+    for name, a in (("det", T[T.variant == "det"]), ("det+normal", T[T.variant == "det+normal"]),
+                    ("shipped (det days 1 to 7, det+normal days 8 to 14)", shipped)):
         t = a.groupby(pd.cut(a.p, [0, .5, .6, .7, .8, .9, 1.0]), observed=True).agg(
             days=("hit", "size"), said=("p", "mean"), came_true=("hit", "mean"))
         brier = ((a.p - a.hit) ** 2).mean()
         print(f"Certainty reliability, tmax, {name}, leads 1 to 14 (Brier {brier:.4f})\n",
               t.round(3).to_string(), "\n")
+    top = shipped[shipped.p > 0.9]
+    print("Top band (over 90%), shipped mix, by lead: "
+          + ", ".join(f"day {L} {len(g)}" for L, g in top.groupby("lead")), "\n")
     out = ROOT / "data" / "horizon_scores.csv"
     R.to_csv(out, index=False)
     print("saved", out.relative_to(ROOT))
@@ -281,6 +288,20 @@ def group_test():
         print(f"   Brier, highs days 8 to 14, {k}: {((a.p - a.hit) ** 2).mean():.4f}; "
               f"without the disagreement term {((a.p0 - a.hit) ** 2).mean():.4f}; "
               f"fixed rate per lead (hindsight) {((fixed - a.hit) ** 2).mean():.4f}")
+    # The lines above drop a case only where that variant's Certainty is missing (fewer than 20
+    # days of its own trailing record), so each variant is scored on its own set of cases, and
+    # the fixed rate on all of them. Matched: only cases where every variant has p and p0.
+    A["date"] = A.index
+    W = A.pivot_table(index=["date", "lead"], columns="variant", values=["p", "p0", "hit"])
+    W = W.dropna()
+    print(f"\n   Matched cases (every variant has a Certainty): {len(W)} of "
+          f"{len(A[A.variant == names[0]])} current cases")
+    for k in names[:3]:
+        p, p0, hit = W["p"][k], W["p0"][k], W["hit"][k]
+        fixed = hit.groupby(level="lead").transform("mean")
+        print(f"   Brier, matched, highs days 8 to 14, {k}: {((p - hit) ** 2).mean():.4f}; "
+              f"without the disagreement term {((p0 - hit) ** 2).mean():.4f}; "
+              f"fixed rate per lead (hindsight) {((fixed - hit) ** 2).mean():.4f}")
 
 
 if __name__ == "__main__":
