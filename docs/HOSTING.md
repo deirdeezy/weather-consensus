@@ -6,7 +6,7 @@ Everything runs on GitHub for $0: a public repo, GitHub Actions for the jobs, a 
 | Piece | Where | Written by |
 |---|---|---|
 | Code, config, docs | `main` | people |
-| Saved state: refresh state, raw pulls (incl. the ensemble record), Single Runs, the normal, `scores.json`, `live_scores.csv`, our own consensus record (`<place>/consensus_log.jsonl`, one line of about 0.4 KB per issue date, and `live_consensus.csv`, its nightly scores), the latest station observation (`<place>/now.json`, about 0.6 KB, replaced each hour), `refusals.jsonl` | `data` branch (checked out at `data/store/`) | the workflows |
+| Saved state: refresh state, raw pulls (incl. the ensemble record), Single Runs, the normal, `scores.json`, `live_scores.csv`, our own consensus record (`<place>/consensus_log.jsonl`, one line of about 0.4 KB per issue date, and `live_consensus.csv`, its nightly scores), the issue ledger (`<place>/issue_ledger.jsonl`, append-only, two lines a day, about 5.7 KB a day, and `live_issues.csv`, its nightly scores), the last rejected scores (`<place>/scores_rejected.json`, only while a rejection stands), the latest station observation (`<place>/now.json`, about 0.6 KB, replaced each hour), `refusals.jsonl` | `data` branch (checked out at `data/store/`) | the workflows |
 | Nightly re-downloads (Previous Runs, ECCC station data) | Actions cache, fallback copy only | nightly workflow |
 | `kitimat.json` | GitHub Pages: `https://deirdeezy.github.io/weather-consensus/kitimat.json` | the workflows (never committed) |
 | `backtest/kitimat.json` (about 13 KB; changes only when `backtest.py` is run again and its results committed) | GitHub Pages: `https://deirdeezy.github.io/weather-consensus/backtest/kitimat.json` | the workflows, from `data/backtest/kitimat.json` in `main` (never committed under `public/`) |
@@ -73,6 +73,15 @@ ECCC does not document when a day's values appear in the climate-daily API. On 2
 - Shadow-run count: `uv run python backend/scripts/refusals.py --since <time>` on a checkout of `data`.
 - Each refusal line also names the runner's cloud and region (`runner`, from `backend/ci/runner_info.sh`, which both nightly jobs and the hourly job print first). The internet address itself is not logged.
 
+### Nightly: keep the last good scores (built 27 Nov 2026)
+Why (independent review, finding 2): the nightly re-downloads live in the Actions cache, not Git. If the cache is gone (evicted after 7 days unused, or not restored) and Open-Meteo refuses the Previous Runs calls, nothing is left for days 1 to 7, and the old code wrote a `scores.json` with days 8 to 14 only over good scores; the next hourly publish then had no highs for days 1 to 7 with `stale` false.
+1. New scores are a candidate. `score.py` promotes them only if every day 1 to 7 has, for highs and lows, a source with a habit fix and an error and the consensus's own recent miss (`why_unusable` in `backend/wxc/score.py`).
+2. Otherwise `scores.json` is left exactly as it was (and `live_scores.csv`, `live_consensus.csv`, `live_issues.csv` too), the reasons go to `<place>/scores_rejected.json` and the refusal log (kind `scores_rejected`), and `score.py` exits 1. Publishing goes on with the last good scores; the place file's `scores_computed_at` says how old they are.
+3. `already_scored` is false while a rejection for today stands, so the second slot or a manual run tries again; `missing.py` counts the rejected attempt's rate-limit losses, so `om_refused` starts the retry job.
+4. Who fails the run: `nightly.sh` fails when scoring failed, except in the first job (`RETRY_ON_LIMIT=1` in `nightly.yml`) when Open-Meteo rate limits were behind it (`missing.py --status` exits 3). Then the first job passes so the retry job runs on a fresh runner; if that one still cannot score, it fails and GitHub emails the owner. A rejection with no rate-limit refusal behind it (network errors, missing data) fails the first job at once.
+5. A promoted candidate deletes `scores_rejected.json`.
+Tested in `tests/test_last_good_scores.py` and in `local_test.sh` (below).
+
 ### Nightly: Open-Meteo rate-limit refusals (built 26 Nov 2026)
 Why: on 25 Nov 2026 the 19:37 UTC nightly got "Daily API request limit exceeded" for all 18 Open-Meteo calls (another user of the runner's shared address had used the quota). It scored on saved copies, and the 23:49 UTC nightly then skipped as "already scored", so nothing retried.
 1. `score.py` lists every download it could not refresh in `scores.json` as `downloads_stale`: `download` (`previous_runs`, `single_run`, `station`, `normal`), `source`, `day` for Single Runs, `why` (`limit` for an Open-Meteo rate-limit refusal, `error` for anything else) and `used` (the saved copy, if any).
@@ -125,7 +134,7 @@ Measured on the Stage 1 store, packed by Git (25 Nov 2026):
 - Starting `data` branch: 1.9 MiB (2,124 Single Runs, normal records, the first pulls, scores).
 - Deterministic pull: about 0.75 KiB each; about 45 a day (most sources post every 6 hours, some have several components).
 - Ensemble pull: about 16 KiB each; about 10 a day (ECMWF ENS and GEFS 4 a day, GEPS 2).
-- Single Runs: about 1 KiB each, 9 a day. `live_scores.csv` grows about 30 KiB a day once scored. `consensus_log.jsonl` grows 407 bytes a day per place (measured 27 Nov 2026), about 150 KB a year; `live_consensus.csv` about 1 KiB a day. Commits and folder listings: about 75 KiB a day.
+- Single Runs: about 1 KiB each, 9 a day. `live_scores.csv` grows about 30 KiB a day once scored. `consensus_log.jsonl` grows 407 bytes a day per place (measured 27 Nov 2026), about 150 KB a year; `issue_ledger.jsonl` grows 5,663 bytes a day per place (measured 27 Nov 2026 on a copy of the `data` branch, 9 models and the normal), about 2 MB a year; `live_consensus.csv` about 1 KiB a day. Commits and folder listings: about 75 KiB a day.
 
 Estimate: **about 350 KiB a day, 10 to 15 MB a month, 120 to 180 MB a year** (about 70% of it the ensemble record). At that rate the 1 GB guideline is about 6 years away. Unpacked, the checkout grows about 55 MB a month; each run downloads the packed size. Check the real number after the first week (`git count-objects -vH` on a fresh clone of `data`). If it ever matters: archive old months as release files, or check out only recent days in the hourly job.
 
@@ -153,6 +162,8 @@ It checks: `kitimat.json` is written and matches the schema; it is not committed
 Result 25 Nov 2026: all checks passed; hourly job 11 s, forced nightly 19 s on the development Mac.
 
 Simulated refusals (added 26 Nov 2026): `backend/ci/fake_open_meteo/sitecustomize.py`, loaded only when that folder is on `PYTHONPATH` and `WXC_FAKE_OPEN_METEO` is set (never in the workflows), answers Open-Meteo calls locally: `daily` (HTTP 429 daily limit, as on 25 Nov) or `gone-runs` (Single Runs "not available"). Checks: the first job succeeds on saved copies and reports `om_refused=true`; an `--if-needed` rerun no longer skips; a retry that is still refused fails `missing.py --fail-on-limit`; a retry on a working address rescores, leaves nothing stale and passes; the next `--if-needed` run skips again; expected Single Runs gaps leave nothing stale and do not fail. Result 26 Nov 2026: 24 of 24 checks passed, against a copy of the real `data` branch.
+
+Added 27 Nov 2026: the review's case on the real job scripts. With the download cache emptied and every Open-Meteo call refused, the new scores (days 8 to 14 only) are rejected and `scores.json` stays byte for byte; the first job passes with `om_refused=true`; the published file keeps days 1 to 7 highs and Certainty and names when its scores were computed; a retry that is still refused rescores, rejects again and fails; the next hourly keeps the highs; recovery promotes and clears the rejection. Result 27 Nov 2026: 32 of 32 checks passed, against a copy of the real `data` branch.
 
 ## Working with the data locally
 ```bash
