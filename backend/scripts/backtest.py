@@ -52,7 +52,7 @@ def frame(models, lead, var, dates):
 def scores():
     obs, models = load()
     dates = pd.Index(sorted(obs.index))
-    rows, calib, scored = [], [], []
+    rows, calib, scored, versus = [], [], [], []
     for var in ("tmax", "tmin", "pcp"):
         for lead in range(1, 8):
             F = frame(models, lead, var, dates)
@@ -81,6 +81,7 @@ def scores():
                 r.update(certainty_said=ev.p.mean(), came_true=hit.mean())
                 calib.append(pd.DataFrame({"var": var, "p": ev.p, "hit": hit}))
             scored.extend(ev.index)
+            versus.extend(per_source(F, o, ev, var, lead))
             rows.append(r)
     R = pd.DataFrame(rows)
     pd.set_option("display.width", 220)
@@ -94,14 +95,53 @@ def scores():
         t = a.groupby(pd.cut(a.p, [0, .5, .6, .7, .8, .9, 1.0]), observed=True).agg(
             days=("hit", "size"), said=("p", "mean"), came_true=("hit", "mean"))
         print(f"Certainty reliability, {var}, leads 1 to 7\n", t.round(3).to_string(), "\n")
+    V = pd.DataFrame(versus)
+    print_versus(V)
     out = ROOT / "data" / "backtest_scores.csv"
     R.to_csv(out, index=False)
     print("saved", out.relative_to(ROOT))
-    write_results(R, min(scored), max(scored), models[BASELINE][1].dropna(how="all").index.min())
+    write_results(R, V, min(scored), max(scored), models[BASELINE][1].dropna(how="all").index.min())
     print("saved", RESULTS.relative_to(ROOT))
 
 
-def results(R: pd.DataFrame, first, last, warmup_from) -> dict:
+def per_source(F: pd.DataFrame, o: pd.Series, ev: pd.DataFrame, var: str, lead: int) -> list[dict]:
+    """Each single source alone (its raw forecast, like ECMWF above) against the
+    Consensus, on the Consensus's own scored days where that source has a
+    forecast. Past data only: the Consensus is the same rolling one as above.
+    Adds rows to a separate table; the score table above is not touched."""
+    out = []
+    for m in F.columns:
+        days = ev.index[F[m].reindex(ev.index).notna()]
+        if not len(days):
+            continue
+        src = (F[m].reindex(days) - o.reindex(days)).abs().mean()
+        cons = (ev.c.reindex(days) - ev.o.reindex(days)).abs().mean()
+        out.append({"var": var, "lead": lead, "source": m, "days": len(days),
+                    "source_miss": src, "consensus_miss": cons})
+    return out
+
+
+def print_versus(V: pd.DataFrame):
+    """Every source against the Consensus on the same days: a lower miss wins.
+    'closer' is True only when the Consensus's miss is strictly lower."""
+    if V.empty:
+        return
+    V = V.assign(closer=V.consensus_miss < V.source_miss)
+    print("Consensus vs each single source alone, same scored days (deg C; precip mm)\n")
+    for var in ("tmax", "tmin", "pcp"):
+        t = V[V["var"] == var].pivot(index="source", columns="lead", values="source_miss").round(3)
+        c = V[V["var"] == var].groupby("lead").consensus_miss.agg(["min", "max"]).round(3).T
+        print("==", var, "single source miss by lead")
+        print(t.to_string())
+        print("   Consensus miss on those days (range across sources):")
+        print(c.to_string())
+        lost = V[(V["var"] == var) & ~V.closer]
+        print("   Consensus not closer:", "none" if lost.empty else
+              ", ".join(f"{r.source} day {r.lead} ({r.consensus_miss:.3f} vs {r.source_miss:.3f})"
+                        for r in lost.itertuples()), "\n")
+
+
+def results(R: pd.DataFrame, V: pd.DataFrame, first, last, warmup_from) -> dict:
     """The card's numbers, straight from the score table (deg C and mm, 3 decimals)."""
     def num(x):
         return None if pd.isna(x) else round(float(x), 3)
@@ -119,6 +159,11 @@ def results(R: pd.DataFrame, first, last, warmup_from) -> dict:
         r = row("pcp", lead)
         e["rain"] = {"consensus": num(r.consensus), "baseline": num(r.ecmwf), "days": int(r.n),
                      "brier_chance": num(r.brier_pop), "brier_climatology": num(r.brier_climatology)}
+        for name, var in (("high", "tmax"), ("low", "tmin"), ("rain", "pcp")):
+            v = V[(V["var"] == var) & (V["lead"] == lead)]
+            e[name]["sources"] = [{"id": x.source, "miss": num(x.source_miss),
+                                   "consensus": num(x.consensus_miss), "days": int(x.days)}
+                                  for x in v.itertuples()]
         leads.append(e)
     return {
         "basis": "backtest",
@@ -135,9 +180,9 @@ def results(R: pd.DataFrame, first, last, warmup_from) -> dict:
     }
 
 
-def write_results(R, first, last, warmup_from):
+def write_results(R, V, first, last, warmup_from):
     RESULTS.parent.mkdir(parents=True, exist_ok=True)
-    RESULTS.write_text(json.dumps(results(R, first, last, warmup_from), indent=1) + "\n")
+    RESULTS.write_text(json.dumps(results(R, V, first, last, warmup_from), indent=1) + "\n")
 
 
 def align():

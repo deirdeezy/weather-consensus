@@ -292,6 +292,15 @@
     "China CMA" : {
       "comment" : "Source name: China Meteorological Administration"
     },
+    "Closer than every single source on highs and lows at days 1 to %lld." : {
+      "comment" : "Tested card: the consensus beat every source from day 1 to this lead only"
+    },
+    "Closer than every single source on highs and lows on day 1." : {
+      "comment" : "Tested card: the consensus beat every source only on day 1"
+    },
+    "Closer than every single source on highs and lows, at every range from 1 to %lld days." : {
+      "comment" : "Tested card: the consensus beat every source on every lead tested. Value: last lead."
+    },
     "Collapsed" : {
 
     },

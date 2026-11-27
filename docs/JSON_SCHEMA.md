@@ -130,8 +130,9 @@ How it was tested: the consensus is rebuilt day by day on each source's archived
 | `method` | object | `past_data_only` (true), `history`, `habit_days`, `weight_days`. |
 | `baseline` | string | The one model alone it is compared with: `ecmwf_ifs`. |
 | `leads[]` | array | Days 1 to 7: `{"lead", "high", "low", "rain"}`. `high` and `low`: `consensus`, `baseline` and `equal_weights` (average miss, deg C) and `days` scored. `rain`: `consensus` and `baseline` (average miss, mm), `days`, `brier_chance` (our chance of 1 mm or more) and `brier_climatology` (always saying the period's wet-day share); lower is better. |
+| `...sources[]` | array | In `high`, `low` and `rain`: every single source alone against the consensus, `{"id", "miss", "consensus", "days"}`: the source's raw forecast miss and the consensus's miss on the same days (the consensus's scored days where that source has a forecast; fewer where its run stops short of that lead). The consensus wins only when its miss is strictly lower. |
 
-Not in it (the canvas card shows them, the backtest does not compute them): a comparison with every single source at every range, and "a common free default".
+Not in it: "a common free default" (a claim about other apps, not something we test).
 
 ## `now` (optional)
 The latest observation at the place's approved station (the newest minute or hourly record, value by value), and what the station has seen so far in the current climate day. Written by `backend/wxc/obs.py` from ECCC's real-time SWOB (MSC GeoMet `swob-realtime`). Observations, not a forecast: the name `today` is kept for a later lead 0 forecast, and `days` still starts at day 1.

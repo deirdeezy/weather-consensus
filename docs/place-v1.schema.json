@@ -227,7 +227,8 @@
                                "baseline": {"type": ["number", "null"], "minimum": 0},
                                "days": {"type": "integer", "minimum": 0},
                                "brier_chance": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-                               "brier_climatology": {"type": ["number", "null"], "minimum": 0, "maximum": 1}}
+                               "brier_climatology": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+                               "sources": {"$ref": "#/$defs/versus"}}
               }
             }
           }
@@ -273,7 +274,17 @@
       "properties": {"consensus": {"type": ["number", "null"], "minimum": 0},
                      "baseline": {"type": ["number", "null"], "minimum": 0},
                      "equal_weights": {"type": ["number", "null"], "minimum": 0},
-                     "days": {"type": "integer", "minimum": 0}}
+                     "days": {"type": "integer", "minimum": 0},
+                     "sources": {"$ref": "#/$defs/versus"}}
+    },
+    "versus": {
+      "description": "Each single source alone against the consensus on the same scored days (backtest).",
+      "type": "array",
+      "items": {"type": "object", "required": ["id", "miss", "consensus", "days"],
+                "properties": {"id": {"type": "string"},
+                               "miss": {"type": ["number", "null"], "minimum": 0},
+                               "consensus": {"type": ["number", "null"], "minimum": 0},
+                               "days": {"type": "integer", "minimum": 0}}}
     },
     "scored_rain": {
       "type": "object", "required": ["weight", "miss", "days"],

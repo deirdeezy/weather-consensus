@@ -38,6 +38,30 @@ def test_results_file_is_committed_and_labelled():
     assert d1["rain"]["brier_chance"] == 0.092
 
 
+def test_every_source_is_compared_on_the_same_days():
+    r = json.loads(RESULTS.read_text())
+    for lead in r["leads"]:
+        for name in ("high", "low", "rain"):
+            v = lead[name]["sources"]
+            assert v and all(x["days"] <= lead[name]["days"] for x in v)
+            ecmwf = next(x for x in v if x["id"] == "ecmwf_ifs")
+            # ECMWF has a forecast on every scored day: same days, same numbers as the table above
+            assert ecmwf["days"] == lead[name]["days"]
+            assert ecmwf["miss"] == lead[name]["baseline"] and ecmwf["consensus"] == lead[name]["consensus"]
+    d1 = {x["id"]: x for x in r["leads"][0]["high"]["sources"]}
+    assert len(d1) == 9 and d1["gem_seamless"]["miss"] == 1.049
+
+
+def test_what_the_comparison_shows_today():
+    """The card's line depends on this; it is checked, not assumed."""
+    r = json.loads(RESULTS.read_text())
+    lost = [(L["lead"], name, x["id"]) for L in r["leads"] for name in ("high", "low", "rain")
+            for x in L[name]["sources"] if not x["consensus"] < x["miss"]]
+    assert [x for x in lost if x[1] != "rain"] == []  # highs and lows: closer every time, days 1 to 7
+    assert sorted(lost) == [(1, "rain", "ukmo_seamless"), (3, "rain", "ecmwf_ifs"),
+                            (3, "rain", "ukmo_seamless"), (7, "rain", "gfs_seamless")]
+
+
 @pytest.mark.skipif(not CACHE.exists(), reason="pilot cache absent")
 def test_results_file_matches_a_fresh_backtest(tmp_path, monkeypatch, capsys):
     sys.path.insert(0, str(ROOT / "backend" / "scripts"))

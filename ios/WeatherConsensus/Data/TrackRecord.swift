@@ -187,11 +187,33 @@ nonisolated struct Backtest: Codable, Equatable, Sendable {
         enum CodingKeys: String, CodingKey { case pastDataOnly = "past_data_only" }
     }
 
-    /// Average miss, deg C or mm, and days scored.
+    /// Average miss, deg C or mm, and days scored; `sources`: every single source against the consensus.
     nonisolated struct Tested: Codable, Equatable, Sendable {
         let consensus: Double?
         let baseline: Double?
         let days: Int
+        let sources: [Versus]?
+
+        init(consensus: Double?, baseline: Double?, days: Int, sources: [Versus]? = nil) {
+            self.consensus = consensus
+            self.baseline = baseline
+            self.days = days
+            self.sources = sources
+        }
+    }
+
+    /// One single source alone against the consensus, on the same days.
+    nonisolated struct Versus: Codable, Equatable, Sendable {
+        let id: String
+        let miss: Double?
+        let consensus: Double?
+        let days: Int
+
+        /// Only a strictly lower consensus miss counts; a tie or a missing number is not a win.
+        var consensusCloser: Bool {
+            guard let miss, let consensus else { return false }
+            return consensus < miss
+        }
     }
 
     nonisolated struct Lead: Codable, Equatable, Sendable {

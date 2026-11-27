@@ -14,7 +14,9 @@ struct TestedCardTests {
         #expect(b.scoredFrom == LocalDate("2026-01-01") && b.scoredTo == LocalDate("2026-10-30"))
         #expect(b.method?.pastDataOnly == true)
         #expect(b.leads.map(\.lead) == Array(1...7))
-        #expect(b.leads[0].high == .init(consensus: 1.004, baseline: 1.424, days: 285))
+        let high = try #require(b.leads[0].high)
+        #expect(high.consensus == 1.004 && high.baseline == 1.424 && high.days == 285)
+        #expect(high.sources?.count == 9)
     }
 
     @Test func headingCountsTheScoredMonthsNotAYear() throws {
@@ -52,9 +54,63 @@ struct TestedCardTests {
         let b = try #require(f.backtest)
         let all = [TestedText.heading(b, placeName: "Kitimat"), TestedText.sentence(b, names: SourceNames(f)) ?? "",
                    TestedText.method(b), TestedText.tilesLabel(b, names: SourceNames(f), unit: .celsius)].joined(separator: " ")
-        for claim in ["every single source", "every range", "free default", "a year", "About 30%"] {
+        for claim in ["free default", "a year", "About 30%", "rain"] {
             #expect(!all.contains(claim), "\(claim)")
         }
+    }
+
+    /// The backtest with one source's day `lead` low set to `miss` (consensus miss there stays as published).
+    private func backtest(lowMiss miss: Double, lead: Int, source: String = "jma_seamless") throws -> Backtest {
+        var object = try Fixture.trackRecordObject()
+        var bt = object["backtest"] as! [String: Any]
+        var leads = bt["leads"] as! [[String: Any]]
+        let i = leads.firstIndex { ($0["lead"] as! Int) == lead }!
+        var low = leads[i]["low"] as! [String: Any]
+        var sources = low["sources"] as! [[String: Any]]
+        let j = sources.firstIndex { ($0["id"] as! String) == source }!
+        sources[j]["miss"] = miss == .infinity ? sources[j]["consensus"]! : miss
+        low["sources"] = sources
+        leads[i]["low"] = low
+        bt["leads"] = leads
+        object["backtest"] = bt
+        return try #require(try ForecastDecoder.decode(Fixture.encode(object)).backtest)
+    }
+
+    @Test func everySourceLineFollowsTheRealResults() throws {
+        let b = try #require(try forecast().backtest)
+        let d1 = try #require(b.leads.first?.high?.sources)
+        #expect(d1.count == 9 && d1.allSatisfy(\.consensusCloser))
+        #expect(TestedText.closerThroughLead(b) == 7)
+        #expect(TestedText.everySourceLine(b) == "Closer than every single source on highs and lows, at every range from 1 to 7 days.")
+    }
+
+    @Test func aLossIsNeverRoundedIntoAWin() throws {
+        // a loss at day 3 on lows: the line stops at day 2
+        #expect(TestedText.everySourceLine(try backtest(lowMiss: 0.5, lead: 3)) == "Closer than every single source on highs and lows at days 1 to 2.")
+        // a tie is not a win
+        let tie = try backtest(lowMiss: .infinity, lead: 2)
+        #expect(TestedText.closerThroughLead(tie) == 1)
+        #expect(TestedText.everySourceLine(tie) == "Closer than every single source on highs and lows on day\u{00A0}1.")
+        // a loss at day 1: no line at all
+        #expect(TestedText.everySourceLine(try backtest(lowMiss: 0.5, lead: 1)) == nil)
+    }
+
+    @Test func noComparisonInTheFileMeansNoLine() throws {
+        var object = try Fixture.trackRecordObject()
+        var bt = object["backtest"] as! [String: Any]
+        bt["leads"] = (bt["leads"] as! [[String: Any]]).map { lead in
+            var lead = lead
+            for name in ["high", "low", "rain"] {
+                var v = lead[name] as! [String: Any]
+                v.removeValue(forKey: "sources")
+                lead[name] = v
+            }
+            return lead
+        }
+        object["backtest"] = bt
+        let b = try #require(try ForecastDecoder.decode(Fixture.encode(object)).backtest)
+        #expect(TestedText.everySourceLine(b) == nil)
+        #expect(TestedText.sentence(b, names: SourceNames(try forecast())) != nil)  // the ECMWF numbers stay
     }
 
     @Test func notCloserIsSaidPlainly() throws {

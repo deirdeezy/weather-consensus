@@ -55,6 +55,35 @@ nonisolated enum TestedText {
                       comment: "Tested card. Values: percent closer on highs, model name, percent on lows.")
     }
 
+    /// Leads 1, 2, 3 ... on which the consensus beat every single source on both highs and lows, counted
+    /// from day 1 up to the first lead where it did not (or where the file has no comparison).
+    static func closerThroughLead(_ backtest: Backtest) -> Int {
+        var through = 0
+        for lead in 1...max(backtest.leads.map(\.lead).max() ?? 0, 1) {
+            guard let l = backtest.leads.first(where: { $0.lead == lead }),
+                  let highs = l.high?.sources, let lows = l.low?.sources,
+                  !highs.isEmpty, !lows.isEmpty,
+                  (highs + lows).allSatisfy(\.consensusCloser) else { break }
+            through = lead
+        }
+        return through
+    }
+
+    /// The canvas line, only as far as the results hold: every lead in the test, some first leads, or nothing.
+    static func everySourceLine(_ backtest: Backtest) -> String? {
+        let through = closerThroughLead(backtest)
+        let last = backtest.leads.map(\.lead).max() ?? 0
+        switch through {
+        case 0: return nil
+        case 1: return String(localized: "Closer than every single source on highs and lows on day\u{00A0}1.",
+                              comment: "Tested card: the consensus beat every source only on day 1")
+        case last: return String(localized: "Closer than every single source on highs and lows, at every range from 1 to \(last) days.",
+                                 comment: "Tested card: the consensus beat every source on every lead tested. Value: last lead.")
+        default: return String(localized: "Closer than every single source on highs and lows at days 1 to \(through).",
+                               comment: "Tested card: the consensus beat every source from day 1 to this lead only")
+        }
+    }
+
     /// How it was tested, period, days, and that it is not our live record.
     static func method(_ backtest: Backtest) -> String {
         let station = backtest.station?.name ?? String(localized: "the station")
@@ -121,7 +150,8 @@ struct TestedCard: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(verbatim: TestedText.tilesLabel(backtest, names: names, unit: units.temperature)))
-                if let sentence = TestedText.sentence(backtest, names: names) {
+                if let sentence = [TestedText.sentence(backtest, names: names), TestedText.everySourceLine(backtest)]
+                    .compactMap({ $0 }).joined(separator: " ").nilIfEmpty {
                     Text(verbatim: sentence)
                         .font(.inter(14, .regular, relativeTo: .subheadline))
                         .lineSpacing(3)
@@ -173,3 +203,7 @@ struct TestedCard: View {
     .dynamicTypeSize(.accessibility5)
 }
 #endif
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}
