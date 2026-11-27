@@ -27,8 +27,8 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
     let now: StationObservation?
     /// Each source's track record and habit fix. Older files do not have it (docs/JSON_SCHEMA.md).
     let trackRecord: TrackRecord?
-    /// The backtest behind the "Tested on real weather" card. Only places with a backtest have it.
-    let backtest: Backtest?
+    /// Pointer to the place's backtest file (the tested card). Only places with a backtest have it.
+    let backtestFile: BacktestRef?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -42,13 +42,13 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         case weightsAsOf = "weights_as_of"
         case units, sources, days, credits, now
         case trackRecord = "track_record"
-        case backtest
+        case backtestFile = "backtest_file"
     }
 
     init(schemaVersion: Int, place: Place, issuedAt: Date, issueDate: LocalDate, newestRunAt: Date?,
          freshDataAt: Date?, stale: Bool, staleAfterHours: Double, weightsAsOf: LocalDate?, units: Units,
          sources: [Source], days: [Day], credits: [Credit], now: StationObservation? = nil,
-         trackRecord: TrackRecord? = nil, backtest: Backtest? = nil) {
+         trackRecord: TrackRecord? = nil, backtestFile: BacktestRef? = nil) {
         self.schemaVersion = schemaVersion
         self.place = place
         self.issuedAt = issuedAt
@@ -64,10 +64,10 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         self.credits = credits
         self.now = now
         self.trackRecord = trackRecord
-        self.backtest = backtest
+        self.backtestFile = backtestFile
     }
 
-    /// As synthesized, except `now`, `track_record` and `backtest`: optional, and a block that cannot be read is dropped
+    /// As synthesized, except `now`, `track_record` and `backtest_file`: optional, and a block that cannot be read is dropped
     /// (logged nowhere, shown as not there) so it can never cost the forecast.
     init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -86,7 +86,7 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         credits = try c.decode([Credit].self, forKey: .credits)
         now = c.lenient(StationObservation.self, .now)
         trackRecord = c.lenient(TrackRecord.self, .trackRecord)
-        backtest = c.lenient(Backtest.self, .backtest)
+        backtestFile = c.lenient(BacktestRef.self, .backtestFile)
     }
 
     nonisolated struct Place: Codable, Equatable, Sendable {

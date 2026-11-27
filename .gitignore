@@ -26,3 +26,4 @@ ios/screenshots/
 
 # Published files: written by publish.py and deployed to Pages by the workflows; never committed (docs/HOSTING.md)
 public/*.json
+public/backtest/

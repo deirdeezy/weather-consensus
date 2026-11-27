@@ -388,7 +388,12 @@ extension ForecastScreenModel {
             if offline { throw URLError(.notConnectedToInternet) }
             return fileData
         }
-        return ForecastScreenModel(placeID: "kitimat", forecast: forecast, loader: loader)
+        var backtest: Backtest?
+        if trackRecord, let url = Bundle.main.url(forResource: "preview-backtest-kitimat", withExtension: "json"),
+           let bytes = try? Data(contentsOf: url) {
+            backtest = BacktestLoader.decode(bytes)
+        }
+        return ForecastScreenModel(placeID: "kitimat", forecast: forecast, loader: loader, backtest: backtest)
     }
 }
 

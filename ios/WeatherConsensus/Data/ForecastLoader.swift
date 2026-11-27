@@ -47,12 +47,18 @@ nonisolated struct ForecastLoader: Sendable {
     /// The loader the app uses: GitHub Pages over an ephemeral session
     /// (no cookies, credentials or cache written to disk).
     static func live(store: ForecastStore = .appDefault()) -> ForecastLoader {
+        ForecastLoader(store: store, fetch: liveFetch())
+    }
+
+    /// The one network call the app makes: a GET to GitHub Pages, refused for any other host.
+    /// Shared by the place files and the backtest files.
+    static func liveFetch() -> Fetch {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieAcceptPolicy = .never
         configuration.httpShouldSetCookies = false
         configuration.timeoutIntervalForRequest = 20
         let session = URLSession(configuration: configuration)
-        return ForecastLoader(store: store) { url in
+        return { url in
             guard url.scheme == "https", url.host() == ForecastEndpoint.host else {
                 throw LoadProblem.network("Blocked request to a host other than GitHub Pages")
             }

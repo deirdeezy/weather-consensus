@@ -186,16 +186,16 @@ struct TestedCard: View {
 
 #if DEBUG
 #Preview("Tested card") {
-    let forecast = ForecastScreenModel.previewFixture(trackRecord: true).forecast!
-    TestedCard(backtest: forecast.backtest!, placeName: "Kitimat", names: SourceNames(forecast))
+    let model = ForecastScreenModel.previewFixture(trackRecord: true)
+    TestedCard(backtest: model.backtest!, placeName: "Kitimat", names: SourceNames(model.forecast!))
         .padding(16)
         .background(SkyView(style: SkyStyle(time: .day, weather: nil)))
 }
 
 #Preview("Tested card, °F, largest text") {
-    let forecast = ForecastScreenModel.previewFixture(trackRecord: true).forecast!
+    let model = ForecastScreenModel.previewFixture(trackRecord: true)
     ScrollView {
-        TestedCard(backtest: forecast.backtest!, placeName: "Kitimat", names: SourceNames(forecast))
+        TestedCard(backtest: model.backtest!, placeName: "Kitimat", names: SourceNames(model.forecast!))
             .padding(16)
     }
     .background(SkyView(style: SkyStyle(time: .night, weather: nil)))

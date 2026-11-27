@@ -161,9 +161,10 @@ nonisolated enum TrackBasis: String, CaseIterable, Sendable {
     case archive, live
 }
 
-/// `backtest` in the place file (docs/JSON_SCHEMA.md): the consensus and one model alone rebuilt day by day
-/// on archived forecasts, each day using only data from before it, scored against the station. Written by
-/// `backend/scripts/backtest.py`; every number is from that script. Optional; dropped if unreadable.
+/// The place's backtest file (`backtest/<place>.json`, docs/backtest-v1.schema.json): the consensus and one
+/// model alone rebuilt day by day on archived forecasts, each day using only data from before it, scored
+/// against the station. Written by `backend/scripts/backtest.py`; every number is from that script.
+/// Loaded by `BacktestLoader` when the place file's `backtest_file` hash changes.
 nonisolated struct Backtest: Codable, Equatable, Sendable {
     let basis: String
     let station: PlaceForecast.TruthStation?

@@ -73,7 +73,7 @@ struct ContentView: View {
         #if DEBUG
         if let debug = DebugLaunch.model() { return debug }
         #endif
-        let model = ForecastScreenModel(placeID: "kitimat", loader: .live())
+        let model = ForecastScreenModel(placeID: "kitimat", loader: .live(), backtests: .live())
         model.showSavedCopy()
         return model
     }

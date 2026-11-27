@@ -30,7 +30,7 @@ One file per place: `public/<place>.json` (for example `public/kitimat.json`), w
 | `credits` | array | `{"text", "licence", "url", "licence_url"}`. Show every `text` in About. |
 | `now` | object, optional | Latest station observation (see below). Added 25 Nov 2026 without a version change. |
 | `track_record` | object, optional | How each source has done against the station, its weight today and its habit fix (see below). Added 27 Nov 2026 without a version change. |
-| `backtest` | object, optional | The backtest behind the "Tested on real Kitimat weather" card (see below). Added 27 Nov 2026 without a version change. |
+| `backtest_file` | object, optional | Pointer to the place's backtest file (see below): `{"path", "sha256", "bytes"}`. Added 27 Nov 2026 without a version change. |
 
 ## `place`
 | Field | Type | Meaning |
@@ -116,8 +116,18 @@ Example (real data, Kitimat, scored on issue date 26 Nov 2026 from the `data` br
 
 Each `days` entry is `[lead, high, low, precip_mm, precip_chance, certainty]`, exactly as published (deg C, mm, percent; null stays null). `precip_mm` is kept as well as the chance so the rain miss can be compared with the backtest's. The nightly `score.py` matches every line to the station (`live_consensus.csv`) and sums it up in `scores.json` `live.consensus` per lead: high, low and rain average miss, the chance of precipitation's Brier score (wet = 1 mm or more), and Certainty said vs came true (high within 2 deg C), each with its days, over the same 60 target days and with the same 20-day minimum. The same measures `backtest.py` reports, so the live record can be set against the backtest.
 
-## `backtest` (optional)
-The numbers behind the "Tested on real Kitimat weather" card. Written by `backend/scripts/backtest.py` to `data/backtest/<place>.json` (committed) and copied in by `publish.py`; only places with a backtest have it (Kitimat today). Every number is computed by that script; nothing is added by hand.
+## The backtest file and `backtest_file` (optional)
+The numbers behind the "Tested on real Kitimat weather" card live in their own file on the same site, `backtest/<place>.json` (for example `https://deirdeezy.github.io/weather-consensus/backtest/kitimat.json`), because they change only when the backtest is run again. Formal schema: `docs/backtest-v1.schema.json`. Written by `backend/scripts/backtest.py` to `data/backtest/<place>.json` (committed) and published by `publish.py` compact with sorted keys, so the same results always give the same bytes. Only places with a backtest have it (Kitimat today). Every number is computed by that script; nothing is added by hand.
+
+The place file carries only the pointer:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `backtest_file.path` | string | `backtest/<place id>.json`, relative to the place file. |
+| `backtest_file.sha256` | string | SHA-256 of the file's exact bytes, lowercase hex. A reader downloads the file again only when this differs from its saved copy, and keeps a download only if its hash matches. |
+| `backtest_file.bytes` | integer | The file's size. |
+
+Readers: no pointer, no card (older place files, places without a backtest). A missing or unreadable backtest file hides the card and never touches the forecast. Readers that do not know `backtest_file` ignore it. The backtest file's fields:
 
 How it was tested: the consensus is rebuilt day by day on each source's archived forecasts (Open-Meteo Previous Runs), with the same habit fix (30 days), weights (60 days) and guardrails as live, and each day uses only data from before it (`method.past_data_only`). Then every scored day is compared with the station.
 

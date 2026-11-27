@@ -454,7 +454,7 @@
     "GitHub Privacy Statement" : {
 
     },
-    "GitHub hosts the forecast file and, like any web host, may keep standard server logs. GitHub says that when a GitHub Pages site is visited, the visitor's IP address is logged and stored for security purposes. Your phone's internet address is part of every request it makes." : {
+    "GitHub hosts these files and, like any web host, may keep standard server logs. GitHub says that when a GitHub Pages site is visited, the visitor's IP address is logged and stored for security purposes. Your phone's internet address is part of every request it makes." : {
 
     },
     "High" : {
@@ -535,7 +535,7 @@
     "Last observation %lld h ago" : {
       "comment" : "Now card, observation over 3 hours old. Value: whole hours"
     },
-    "Last updated 25 November 2026" : {
+    "Last updated 27 November 2026" : {
       "comment" : "Privacy policy date"
     },
     "Latest scores" : {
@@ -932,7 +932,7 @@
     "The fix takes %@ off" : {
 
     },
-    "The latest forecast file is saved on the phone too, so the forecast still shows when you are offline. Each new file replaces the old one. Deleting the app deletes all of it." : {
+    "The latest forecast file, and the test results behind it, are saved on the phone too, so they still show when you are offline. Each new file replaces the old one. Deleting the app deletes all of it." : {
 
     },
     "The ring on every day is the odds its high lands within %@ of our number. Think of it as days out of 10." : {
@@ -944,7 +944,7 @@
     "Those logs are GitHub's. This app has no access to them." : {
 
     },
-    "To show the forecast, the app downloads a public forecast file for each place from GitHub Pages. The file is the same for everyone. The app adds nothing about you to the request: no account, no device identifier, no location and no settings." : {
+    "To show the forecast, the app downloads a public forecast file for each place from GitHub Pages, and from the same site a public file of test results when those change. The files are the same for everyone. The app adds nothing about you to the requests: no account, no device identifier, no location and no settings." : {
 
     },
     "Too few days (%lld)" : {

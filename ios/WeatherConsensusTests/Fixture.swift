@@ -44,8 +44,9 @@ enum Fixture {
 
     /// A second real file: `kitimat.json` scored and published on this Mac on 27 Nov 2026 00:49 UTC from a copy of
     /// the `data` branch with the track record code (issued_at 2026-11-27T00:49:39Z), before the live file had
-    /// `track_record`. Real data, not sample data. Its `backtest` block was added afterwards with the backend's own
-    /// `publish.backtest_block` from the committed `data/backtest/kitimat.json` (also real, from `backtest.py`).
+    /// `track_record`. Real data, not sample data. Its `backtest_file` pointer was added afterwards with the backend's
+    /// own `publish.backtest_pointer`, naming `Fixtures/fixture-backtest-kitimat.json`: the backtest file exactly as
+    /// `publish.py` writes it from the committed `data/backtest/kitimat.json` (real, from `backtest.py`).
     /// File: `Fixtures/fixture-kitimat-track-record-2026-11-27T0049Z.json`.
     static let trackRecordName = "fixture-kitimat-track-record-2026-11-27T0049Z"
 
@@ -59,6 +60,24 @@ enum Fixture {
 
     static func trackRecordForecast() throws -> PlaceForecast {
         try ForecastDecoder.decode(trackRecordData())
+    }
+
+    static func backtestData() throws -> Data {
+        let bundle = Bundle(for: BundleToken.self)
+        let name = "fixture-backtest-kitimat"
+        guard let url = bundle.url(forResource: name, withExtension: "json")
+            ?? bundle.url(forResource: name, withExtension: "json", subdirectory: "Fixtures")
+        else { throw FixtureError.missing }
+        return try Data(contentsOf: url)
+    }
+
+    static func backtest() throws -> Backtest {
+        guard let b = BacktestLoader.decode(try backtestData()) else { throw FixtureError.missing }
+        return b
+    }
+
+    static func backtestObject() throws -> [String: Any] {
+        try JSONSerialization.jsonObject(with: backtestData()) as! [String: Any]
     }
 
     static func trackRecordObject() throws -> [String: Any] {

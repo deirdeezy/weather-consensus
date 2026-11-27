@@ -10,20 +10,26 @@ final class ForecastScreenModel {
     private(set) var origin: LoadResult.Origin = .none
     private(set) var problem: LoadProblem?
     private(set) var isLoading = false
+    /// The tested card's numbers, from the backtest file the forecast points to. nil hides the card.
+    private(set) var backtest: Backtest?
 
     private let loader: ForecastLoader
+    private let backtests: BacktestLoader?
 
-    init(placeID: String, loader: ForecastLoader) {
+    init(placeID: String, loader: ForecastLoader, backtests: BacktestLoader? = nil) {
         self.placeID = placeID
         self.loader = loader
+        self.backtests = backtests
     }
 
     /// A model that already holds a forecast (previews).
-    init(placeID: String, forecast: PlaceForecast, loader: ForecastLoader) {
+    init(placeID: String, forecast: PlaceForecast, loader: ForecastLoader, backtest: Backtest? = nil) {
         self.placeID = placeID
         self.loader = loader
+        self.backtests = nil
         self.forecast = forecast
         self.origin = .savedCopy
+        self.backtest = backtest
     }
 
     /// Puts the saved file on screen at once, before the first frame, so the sky starts on the place's
@@ -33,6 +39,7 @@ final class ForecastScreenModel {
         if forecast == nil, let saved = loader.savedForecast(placeID: placeID) {
             forecast = saved
             origin = .savedCopy
+            backtest = backtests?.saved(placeID: placeID, ref: saved.backtestFile)
         }
     }
 
@@ -47,5 +54,9 @@ final class ForecastScreenModel {
             origin = result.origin
         }
         // No forecast in the result: keep whatever good forecast is already on screen.
+        if let backtests {
+            // Separate from the forecast: a missing or broken backtest file only hides the tested card.
+            backtest = await backtests.load(placeID: placeID, ref: forecast?.backtestFile)
+        }
     }
 }

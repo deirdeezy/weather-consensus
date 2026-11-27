@@ -46,7 +46,7 @@ nonisolated enum PrivacyText {
     static let githubPrivacyURL = URL(string: "https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement")!
     static let githubPagesDataURL = URL(string: "https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages#data-collection")!
 
-    static let updated = String(localized: "Last updated 25 November 2026", comment: "Privacy policy date")
+    static let updated = String(localized: "Last updated 27 November 2026", comment: "Privacy policy date")
 
     static let sections: [Section] = [
         Section(title: String(localized: "In short"), paragraphs: [
@@ -54,13 +54,13 @@ nonisolated enum PrivacyText {
         ]),
         Section(title: String(localized: "What stays on your phone"), paragraphs: [
             String(localized: "Your settings (units and the living sky) and your places are stored only on this phone. The app never sends them anywhere."),
-            String(localized: "The latest forecast file is saved on the phone too, so the forecast still shows when you are offline. Each new file replaces the old one. Deleting the app deletes all of it."),
+            String(localized: "The latest forecast file, and the test results behind it, are saved on the phone too, so they still show when you are offline. Each new file replaces the old one. Deleting the app deletes all of it."),
         ]),
         Section(title: String(localized: "What the app downloads"), paragraphs: [
-            String(localized: "To show the forecast, the app downloads a public forecast file for each place from GitHub Pages. The file is the same for everyone. The app adds nothing about you to the request: no account, no device identifier, no location and no settings."),
+            String(localized: "To show the forecast, the app downloads a public forecast file for each place from GitHub Pages, and from the same site a public file of test results when those change. The files are the same for everyone. The app adds nothing about you to the requests: no account, no device identifier, no location and no settings."),
         ]),
         Section(title: String(localized: "What GitHub may keep"), paragraphs: [
-            String(localized: "GitHub hosts the forecast file and, like any web host, may keep standard server logs. GitHub says that when a GitHub Pages site is visited, the visitor's IP address is logged and stored for security purposes. Your phone's internet address is part of every request it makes."),
+            String(localized: "GitHub hosts these files and, like any web host, may keep standard server logs. GitHub says that when a GitHub Pages site is visited, the visitor's IP address is logged and stored for security purposes. Your phone's internet address is part of every request it makes."),
             String(localized: "Those logs are GitHub's. This app has no access to them."),
         ], links: [
             Link(title: String(localized: "GitHub Privacy Statement"), url: githubPrivacyURL),

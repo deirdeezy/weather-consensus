@@ -9,7 +9,9 @@ Inputs (all under data/store/<place>/):
 - now.json (hourly, backend/wxc/obs.py): the latest station observation, for
   places with an approved station only. Published as is in "now".
 - data/backtest/<place>.json (in the repo, backend/scripts/backtest.py): the
-  backtest numbers, published as "backtest".
+  backtest numbers, published as their own file public/backtest/<place>.json
+  (they change only when the backtest is run again); the place file carries
+  a small pointer, "backtest_file" (path, SHA-256, bytes).
 
 Also writes data/store/<place>/consensus_log.jsonl: one line per issue date
 with what we published (our own live record, scored nightly by score.py).
@@ -27,6 +29,7 @@ names. Only place data from config/places.json, forecast numbers and credits.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import math
 import time
@@ -219,7 +222,7 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
     if record:
         doc["track_record"] = record
     if backtest:  # data/backtest/<place>.json, written by backend/scripts/backtest.py
-        doc["backtest"] = backtest_block(backtest)
+        doc["backtest_file"] = backtest_pointer(place["id"], backtest_bytes(backtest))
     if now_block:  # only for a place with an approved station (backend/wxc/obs.py)
         doc["now"] = now_block
     return doc
@@ -258,6 +261,22 @@ def backtest_block(r: dict) -> dict:
     return {"basis": "backtest", "station": r.get("station"), "scored_from": r["scored_from"],
             "scored_to": r["scored_to"], "warmup_from": r.get("warmup_from"), "method": method,
             "baseline": r.get("baseline"), "leads": r["leads"]}
+
+
+BACKTEST_DIR = "backtest"  # public/backtest/<place>.json on Pages, next to the place files
+
+
+def backtest_bytes(r: dict) -> bytes:
+    """The published backtest file, byte for byte. Compact and in a fixed key
+    order, so the same results always give the same bytes and the same hash."""
+    return json.dumps(backtest_block(r), separators=(",", ":"), sort_keys=True).encode()
+
+
+def backtest_pointer(place_id: str, data: bytes) -> dict:
+    """What the place file carries instead of the block: where the file is and
+    its SHA-256, so the app downloads it again only when it changed."""
+    return {"path": f"{BACKTEST_DIR}/{place_id}.json", "sha256": hashlib.sha256(data).hexdigest(),
+            "bytes": len(data)}
 
 
 # --- our own consensus, one line a day (scored nightly by score.py) -----------
@@ -399,8 +418,15 @@ def publish(place: dict, cfg: dict, store: Path, out_dir: Path, now: int | None 
     if not pulls:
         log("publish", "publish", "no saved pulls: run refresh.py first")
         raise RuntimeError("no saved pulls, nothing published")
+    backtest = load_backtest(backtest_dir, pid)
     doc = build(place, cfg, scores, pulls, load_normal(store, place), now,
-                obs.load_now(store, place), load_backtest(backtest_dir, pid))
+                obs.load_now(store, place), backtest)
+    if backtest:  # written first, so the pointer never names a file that is not there yet
+        path = out_dir / BACKTEST_DIR / f"{pid}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_bytes(backtest_bytes(backtest))
+        tmp.replace(path)
     _write_json(out_dir / f"{pid}.json", doc)
     log_consensus(store, pid, doc)
     return doc

@@ -1,6 +1,7 @@
 """The backtest block ("Tested on real Kitimat weather" card) and our own
 consensus log (one line a day, scored nightly like the sources)."""
 import datetime as dt
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ import test_publish as tp  # noqa: E402
 import test_track_record as tt  # noqa: E402
 
 RESULTS = ROOT / "data" / "backtest" / "kitimat.json"
+BACKTEST_SCHEMA = json.loads((ROOT / "docs" / "backtest-v1.schema.json").read_text())
 CACHE = ROOT / "data" / "cache" / "prev" / "ecmwf_ifs.json"
 
 
@@ -73,42 +75,74 @@ def test_results_file_matches_a_fresh_backtest(tmp_path, monkeypatch, capsys):
     assert json.loads((tmp_path / "data" / "kitimat.json").read_text()) == json.loads(RESULTS.read_text())
 
 
-# --- the published block -------------------------------------------------------
+# --- the published backtest file and its pointer ------------------------------
 
-def test_block_is_published_as_written_and_matches_the_schema(tmp_path):
+def test_pointer_in_the_place_file_and_no_block(tmp_path):
     results = json.loads(RESULTS.read_text())
     (tmp_path / "testplace.json").write_text(json.dumps({**results, "place": "testplace"}))
     bt = pb.load_backtest(tmp_path, "testplace")
     doc = pb.build(tp.PLACE, tp.CFG, tp.scores(), tt.pulls(), None, tp.NOW, backtest=bt)
     tp.validate(doc, tp.strict(tp.SCHEMA))
-    b = doc["backtest"]
+    assert "backtest" not in doc
+    data = pb.backtest_bytes(bt)
+    assert doc["backtest_file"] == {"path": "backtest/testplace.json",
+                                    "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+
+
+def test_backtest_file_matches_its_schema_and_the_results(tmp_path):
+    data = pb.backtest_bytes(json.loads(RESULTS.read_text()))
+    b = json.loads(data)
+    tp.validate(b, BACKTEST_SCHEMA)
+    tp.validate(b, tp.strict(BACKTEST_SCHEMA))
+    results = json.loads(RESULTS.read_text())
     assert b["basis"] == "backtest" and b["leads"] == results["leads"]
     assert b["scored_from"] == "2026-01-01" and b["method"]["past_data_only"] is True
     assert "script" not in b["method"] and "place" not in b
 
 
-def test_no_results_or_another_place_means_no_block(tmp_path):
+def test_same_results_same_bytes_same_hash():
+    r = json.loads(RESULTS.read_text())
+    shuffled = json.loads(json.dumps(r, sort_keys=False))
+    shuffled = {k: shuffled[k] for k in reversed(list(shuffled))}  # key order must not matter
+    assert pb.backtest_bytes(r) == pb.backtest_bytes(shuffled)
+    changed = json.loads(RESULTS.read_text())
+    changed["leads"][0]["high"]["consensus"] = 1.005
+    assert pb.backtest_pointer("kitimat", pb.backtest_bytes(changed))["sha256"] != \
+        pb.backtest_pointer("kitimat", pb.backtest_bytes(r))["sha256"]
+
+
+def test_no_results_or_another_place_means_no_pointer(tmp_path):
     assert pb.load_backtest(None, "kitimat") is None
     assert pb.load_backtest(tmp_path, "kitimat") is None
     (tmp_path / "terrace.json").write_text(json.dumps({**json.loads(RESULTS.read_text())}))
     assert pb.load_backtest(tmp_path, "terrace") is None  # the file says kitimat
     doc = pb.build(tp.PLACE, tp.CFG, tp.scores(), tt.pulls(), None, tp.NOW)
-    assert "backtest" not in doc
+    assert "backtest_file" not in doc and "backtest" not in doc
 
 
-def test_published_kitimat_file_carries_the_block(tmp_path):
+def _kitimat_store(tmp_path):
     store = tp.make_store(tmp_path)
-    place = {**tp.PLACE, "id": "kitimat"}
     for f in (store / tp.PLACE["id"]).rglob("*"):
         if f.is_file():
             t = store / "kitimat" / f.relative_to(store / tp.PLACE["id"])
             t.parent.mkdir(parents=True, exist_ok=True)
             t.write_text(f.read_text().replace(f'"{tp.PLACE["id"]}/', '"kitimat/'))
-    doc = pb.publish(place, tp.CFG, store, tmp_path / "public", now=tp.NOW, echo=lambda *a: None,
-                     backtest_dir=RESULTS.parent)
-    text = (tmp_path / "public" / "kitimat.json").read_text()
-    assert doc["backtest"]["leads"][0]["high"]["consensus"] == 1.004
-    assert "backend/scripts" not in text and "data/backtest" not in text
+    return store, {**tp.PLACE, "id": "kitimat"}
+
+
+def test_publish_writes_the_file_the_pointer_names(tmp_path):
+    store, place = _kitimat_store(tmp_path)
+    out = tmp_path / "public"
+    doc = pb.publish(place, tp.CFG, store, out, now=tp.NOW, echo=lambda *a: None, backtest_dir=RESULTS.parent)
+    ref = doc["backtest_file"]
+    data = (out / ref["path"]).read_bytes()
+    assert hashlib.sha256(data).hexdigest() == ref["sha256"] and len(data) == ref["bytes"]
+    text = (out / "kitimat.json").read_text()
+    assert '"backtest":' not in text and "backend/scripts" not in text and "data/backtest" not in text
+    # an hour later: same file, same hash, so the app does not download it again
+    doc2 = pb.publish(place, tp.CFG, store, out, now=tp.NOW + 3600, echo=lambda *a: None, backtest_dir=RESULTS.parent)
+    assert doc2["backtest_file"] == ref and (out / ref["path"]).read_bytes() == data
+    assert sorted(p.name for p in (out / "backtest").iterdir()) == ["kitimat.json"]
 
 
 # --- our own consensus log ------------------------------------------------------

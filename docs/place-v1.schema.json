@@ -196,43 +196,14 @@
         }
       }
     },
-    "backtest": {
-      "description": "Optional (added 27 Nov 2026). The backtest behind the Consensus tab's 'Tested on real weather' card: the consensus and one model alone (`baseline`) rebuilt day by day on archived forecasts, each day using only data from before it, scored against the station. Written by backend/scripts/backtest.py. Deg C and mm.",
+    "backtest_file": {
+      "description": "Optional (added 27 Nov 2026). Where the place's backtest file is (docs/backtest-v1.schema.json) and its SHA-256, so a reader downloads it again only when it changed. Same site as this file.",
       "type": "object",
-      "required": ["basis", "station", "scored_from", "scored_to", "method", "baseline", "leads"],
+      "required": ["path", "sha256", "bytes"],
       "properties": {
-        "basis": {"const": "backtest"},
-        "station": {"type": "object", "required": ["network", "id", "name"],
-                    "properties": {"network": {"type": "string"}, "id": {"type": "string"}, "name": {"type": "string"}}},
-        "scored_from": {"$ref": "#/$defs/date"},
-        "scored_to": {"$ref": "#/$defs/date"},
-        "warmup_from": {"oneOf": [{"$ref": "#/$defs/date"}, {"type": "null"}]},
-        "method": {
-          "type": "object", "required": ["past_data_only"],
-          "properties": {"past_data_only": {"type": "boolean"}, "history": {"type": "string"},
-                         "habit_days": {"type": "integer"}, "weight_days": {"type": "integer"}}
-        },
-        "baseline": {"type": "string"},
-        "leads": {
-          "type": "array",
-          "items": {
-            "type": "object", "required": ["lead", "high", "low", "rain"],
-            "properties": {
-              "lead": {"$ref": "#/$defs/lead"},
-              "high": {"$ref": "#/$defs/tested_temp"},
-              "low": {"$ref": "#/$defs/tested_temp"},
-              "rain": {
-                "type": "object", "required": ["consensus", "baseline", "days"],
-                "properties": {"consensus": {"type": ["number", "null"], "minimum": 0},
-                               "baseline": {"type": ["number", "null"], "minimum": 0},
-                               "days": {"type": "integer", "minimum": 0},
-                               "brier_chance": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-                               "brier_climatology": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-                               "sources": {"$ref": "#/$defs/versus"}}
-              }
-            }
-          }
-        }
+        "path": {"type": "string", "pattern": "^backtest/[a-z0-9-]+\\.json$"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "bytes": {"type": "integer", "minimum": 1}
       }
     },
     "credits": {
@@ -268,23 +239,6 @@
                      "days": {"$ref": "#/$defs/count"},
                      "bias": {"type": ["number", "null"]},
                      "bias_days": {"$ref": "#/$defs/count"}}
-    },
-    "tested_temp": {
-      "type": "object", "required": ["consensus", "baseline", "days"],
-      "properties": {"consensus": {"type": ["number", "null"], "minimum": 0},
-                     "baseline": {"type": ["number", "null"], "minimum": 0},
-                     "equal_weights": {"type": ["number", "null"], "minimum": 0},
-                     "days": {"type": "integer", "minimum": 0},
-                     "sources": {"$ref": "#/$defs/versus"}}
-    },
-    "versus": {
-      "description": "Each single source alone against the consensus on the same scored days (backtest).",
-      "type": "array",
-      "items": {"type": "object", "required": ["id", "miss", "consensus", "days"],
-                "properties": {"id": {"type": "string"},
-                               "miss": {"type": ["number", "null"], "minimum": 0},
-                               "consensus": {"type": ["number", "null"], "minimum": 0},
-                               "days": {"type": "integer", "minimum": 0}}}
     },
     "scored_rain": {
       "type": "object", "required": ["weight", "miss", "days"],

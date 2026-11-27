@@ -9,9 +9,10 @@ Everything runs on GitHub for $0: a public repo, GitHub Actions for the jobs, a 
 | Saved state: refresh state, raw pulls (incl. the ensemble record), Single Runs, the normal, `scores.json`, `live_scores.csv`, our own consensus record (`<place>/consensus_log.jsonl`, one line of about 0.4 KB per issue date, and `live_consensus.csv`, its nightly scores), the latest station observation (`<place>/now.json`, about 0.6 KB, replaced each hour), `refusals.jsonl` | `data` branch (checked out at `data/store/`) | the workflows |
 | Nightly re-downloads (Previous Runs, ECCC station data) | Actions cache, fallback copy only | nightly workflow |
 | `kitimat.json` | GitHub Pages: `https://deirdeezy.github.io/weather-consensus/kitimat.json` | the workflows (never committed) |
+| `backtest/kitimat.json` (about 13 KB; changes only when `backtest.py` is run again and its results committed) | GitHub Pages: `https://deirdeezy.github.io/weather-consensus/backtest/kitimat.json` | the workflows, from `data/backtest/kitimat.json` in `main` (never committed under `public/`) |
 | Pilot cache (`data/cache/`) | the development Mac only | never pushed |
 
-- `main` never gets data commits; `public/*.json` stays git-ignored.
+- `main` never gets data commits; `public/*.json` and `public/backtest/` stay git-ignored.
 - The `data` branch has its own README with the layout and data credits (`backend/ci/data_branch/README.md`).
 - Nightly re-downloads stay out of Git because `score.py` fetches them again every night (200-day windows, about 14 MB raw), so committing them would add churn for nothing.
 

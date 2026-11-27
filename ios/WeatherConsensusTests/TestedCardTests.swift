@@ -9,7 +9,7 @@ struct TestedCardTests {
     private func forecast() throws -> PlaceForecast { try Fixture.trackRecordForecast() }
 
     @Test func backtestParsesFromTheFile() throws {
-        let b = try #require(try forecast().backtest)
+        let b = try Fixture.backtest()
         #expect(b.basis == "backtest" && b.baseline == "ecmwf_ifs")
         #expect(b.scoredFrom == LocalDate("2026-01-01") && b.scoredTo == LocalDate("2026-10-30"))
         #expect(b.method?.pastDataOnly == true)
@@ -20,14 +20,14 @@ struct TestedCardTests {
     }
 
     @Test func headingCountsTheScoredMonthsNotAYear() throws {
-        let b = try #require(try forecast().backtest)
+        let b = try Fixture.backtest()
         #expect(TestedText.months(b) == 10)
         #expect(TestedText.heading(b, placeName: "Kitimat") == "TESTED ON 10 MONTHS OF REAL KITIMAT WEATHER")
     }
 
     @Test func tilesAndSentenceComeFromTheTwoNumbers() throws {
         let f = try forecast()
-        let b = try #require(f.backtest)
+        let b = try Fixture.backtest()
         let names = SourceNames(f)
         #expect(TestedText.tileValue(1.004, unit: .celsius) == "1.0°")
         #expect(TestedText.tileValue(1.424, unit: .celsius) == "1.4°")
@@ -40,7 +40,7 @@ struct TestedCardTests {
     }
 
     @Test func methodSaysBacktestPastDataOnlyAndPeriod() throws {
-        let b = try #require(try forecast().backtest)
+        let b = try Fixture.backtest()
         let text = TestedText.method(b)
         #expect(text.contains("only data from before it"))
         #expect(text.contains("Kitimat Forest Ave"))
@@ -51,7 +51,7 @@ struct TestedCardTests {
 
     @Test func noClaimsTheBacktestDoesNotMake() throws {
         let f = try forecast()
-        let b = try #require(f.backtest)
+        let b = try Fixture.backtest()
         let all = [TestedText.heading(b, placeName: "Kitimat"), TestedText.sentence(b, names: SourceNames(f)) ?? "",
                    TestedText.method(b), TestedText.tilesLabel(b, names: SourceNames(f), unit: .celsius)].joined(separator: " ")
         for claim in ["free default", "a year", "About 30%", "rain"] {
@@ -61,8 +61,7 @@ struct TestedCardTests {
 
     /// The backtest with one source's day `lead` low set to `miss` (consensus miss there stays as published).
     private func backtest(lowMiss miss: Double, lead: Int, source: String = "jma_seamless") throws -> Backtest {
-        var object = try Fixture.trackRecordObject()
-        var bt = object["backtest"] as! [String: Any]
+        var bt = try Fixture.backtestObject()
         var leads = bt["leads"] as! [[String: Any]]
         let i = leads.firstIndex { ($0["lead"] as! Int) == lead }!
         var low = leads[i]["low"] as! [String: Any]
@@ -72,12 +71,11 @@ struct TestedCardTests {
         low["sources"] = sources
         leads[i]["low"] = low
         bt["leads"] = leads
-        object["backtest"] = bt
-        return try #require(try ForecastDecoder.decode(Fixture.encode(object)).backtest)
+        return try #require(BacktestLoader.decode(try Fixture.encode(bt)))
     }
 
     @Test func everySourceLineFollowsTheRealResults() throws {
-        let b = try #require(try forecast().backtest)
+        let b = try Fixture.backtest()
         let d1 = try #require(b.leads.first?.high?.sources)
         #expect(d1.count == 9 && d1.allSatisfy(\.consensusCloser))
         #expect(TestedText.closerThroughLead(b) == 7)
@@ -96,8 +94,7 @@ struct TestedCardTests {
     }
 
     @Test func noComparisonInTheFileMeansNoLine() throws {
-        var object = try Fixture.trackRecordObject()
-        var bt = object["backtest"] as! [String: Any]
+        var bt = try Fixture.backtestObject()
         bt["leads"] = (bt["leads"] as! [[String: Any]]).map { lead in
             var lead = lead
             for name in ["high", "low", "rain"] {
@@ -107,33 +104,32 @@ struct TestedCardTests {
             }
             return lead
         }
-        object["backtest"] = bt
-        let b = try #require(try ForecastDecoder.decode(Fixture.encode(object)).backtest)
+        let b = try #require(BacktestLoader.decode(try Fixture.encode(bt)))
         #expect(TestedText.everySourceLine(b) == nil)
         #expect(TestedText.sentence(b, names: SourceNames(try forecast())) != nil)  // the ECMWF numbers stay
     }
 
     @Test func notCloserIsSaidPlainly() throws {
         let f = try forecast()
-        var object = try Fixture.trackRecordObject()
-        var bt = object["backtest"] as! [String: Any]
+        var bt = try Fixture.backtestObject()
         var leads = bt["leads"] as! [[String: Any]]
         leads[0]["high"] = ["consensus": 1.5, "baseline": 1.4, "days": 285]
         bt["leads"] = leads
-        object["backtest"] = bt
-        let b = try #require(try ForecastDecoder.decode(Fixture.encode(object)).backtest)
+        let b = try #require(BacktestLoader.decode(try Fixture.encode(bt)))
         #expect(TestedText.closer(b.leads[0].high) == -7)
         let sentence = try #require(TestedText.sentence(b, names: SourceNames(f)))
         #expect(sentence.hasPrefix("Day 1 highs: ") && sentence.contains("7% against ECMWF alone; lows: 32%."))
         #expect(!sentence.contains("closer"))
     }
 
-    @Test func noBlockNoCardAndAnUnreadableBlockIsDropped() throws {
-        #expect(try Fixture.forecast().backtest == nil)
-        var object = try Fixture.trackRecordObject()
-        object["backtest"] = ["basis": "backtest", "leads": "seven"]
-        let f = try ForecastDecoder.decode(Fixture.encode(object))
-        #expect(f.backtest == nil && f.days.count == 14 && f.trackRecord != nil)
+    @Test func placeFileCarriesOnlyThePointer() throws {
+        let f = try forecast()
+        let ref = try #require(f.backtestFile)
+        #expect(ref.path == "backtest/kitimat.json" && ref.bytes == 13_045)
+        #expect(ref.sha256 == BacktestLoader.sha256(try Fixture.backtestData()))
+        #expect(try Fixture.forecast().backtestFile == nil)  // older place file: no pointer, no card
+        let object = try Fixture.trackRecordObject()
+        #expect(object["backtest"] == nil)
     }
 
     @Test func liveConsensusFillsTheConsensusRowOnlyFromOurRecord() throws {
