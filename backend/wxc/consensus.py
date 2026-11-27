@@ -26,6 +26,11 @@ def _trailing(x: pd.DataFrame | pd.Series, lead: int, days: int, min_periods: in
     return x.shift(lead + 1).rolling(days, min_periods=min_periods).mean()
 
 
+def _trailing_count(x: pd.DataFrame | pd.Series, lead: int, days: int):
+    """How many days with a value the matching _trailing window holds."""
+    return x.notna().astype(float).shift(lead + 1).rolling(days, min_periods=1).sum()
+
+
 def apply_guardrails(w: pd.DataFrame, floor: float = FLOOR, cap: float = CAP,
                      iters: int = 50, cap_exempt=()) -> pd.DataFrame:
     """Clip each row's weights to [floor, cap] among available sources and renormalise.
@@ -107,16 +112,27 @@ def temperature_stats(F: pd.DataFrame, obs: pd.Series, lead: int, issue) -> dict
     bias = _trailing(E, lead, BIAS_DAYS, 10)
     mse = _trailing((E - bias).pow(2), lead, WEIGHT_DAYS, 20)
     tc = temperature_consensus(F, obs, lead)
+    ce = tc.consensus - obs
+    # For the track record only (not used by the blend): the raw average miss
+    # before the habit fix, and how many days each window holds.
     return {"habit_fix": bias.loc[target], "mse": mse.loc[target],
             "consensus_mae": consensus_trailing_mae(tc.consensus, obs, lead).loc[target],
-            "spread_ref": spread_reference(tc.spread, lead).loc[target]}
+            "spread_ref": spread_reference(tc.spread, lead).loc[target],
+            "mae": _trailing(E.abs(), lead, WEIGHT_DAYS, 20).loc[target],
+            "days": _trailing_count(E, lead, WEIGHT_DAYS).loc[target],
+            "bias_days": _trailing_count(E, lead, BIAS_DAYS).loc[target],
+            "consensus_days": _trailing_count(ce, lead, WEIGHT_DAYS).loc[target]}
 
 
 def precip_stats(F: pd.DataFrame, obs: pd.Series, lead: int, issue) -> dict:
     """Mean absolute error per source as known on the issue date."""
     F, obs, target = _as_of_frame(F, obs, issue, lead)
-    mae = _trailing(F.sub(obs, axis=0).abs(), lead, WEIGHT_DAYS, 20)
-    return {"mae": mae.loc[target]}
+    E = F.sub(obs, axis=0)
+    mae = _trailing(E.abs(), lead, WEIGHT_DAYS, 20)
+    ce = precip_consensus(F, obs, lead).consensus - obs
+    return {"mae": mae.loc[target], "days": _trailing_count(E, lead, WEIGHT_DAYS).loc[target],
+            "consensus_mae": _trailing(ce.abs(), lead, WEIGHT_DAYS, 20).loc[target],
+            "consensus_days": _trailing_count(ce, lead, WEIGHT_DAYS).loc[target]}
 
 
 def weights_from_error(err: pd.Series, present: pd.Series | None = None,

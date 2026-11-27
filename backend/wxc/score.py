@@ -43,12 +43,30 @@ LONG_LEADS = range(8, 15)  # from Single Runs (backend/wxc/horizon.py)
 ALL_LEADS = range(1, 15)
 LIVE_LEADS = ALL_LEADS
 NORMAL = "normal"
+SCORES_FORMAT = 2     # 2: track-record fields (mae, days, bias_days, windows, live)
+LIVE_MIN_DAYS = 20    # fewest days for a miss: the minimum the 60-day weight window needs
+                      # (min_periods in consensus.py), for our live record as for the archive
 
 
 def issue_date_now(now: int | None = None) -> dt.date:
     """Today's ECCC climate date (UTC shifted by the climate-day offset)."""
     t = dt.datetime.fromtimestamp(time.time() if now is None else now, dt.timezone.utc)
     return (t + dt.timedelta(hours=CLIMATE_DAY_OFFSET_H)).date()
+
+
+def _int(x):
+    x = _num(x)
+    return None if x is None else int(round(x))
+
+
+def windows(issue: dt.date) -> dict:
+    """Target dates each window covers for a forecast issued on `issue`, at
+    every lead: the errors used end the day before the issue date
+    (consensus._trailing shifts by lead + 1)."""
+    last = issue - dt.timedelta(days=1)
+    return {name: {"from": (last - dt.timedelta(days=n - 1)).isoformat(), "to": last.isoformat(),
+                   "days": n}
+            for name, n in (("miss", cs.WEIGHT_DAYS), ("bias", cs.BIAS_DAYS))}
 
 
 def _num(x):
@@ -161,15 +179,21 @@ def build_scores(obs: pd.DataFrame, prev: dict, pool: list[str], issue: dt.date,
             if var == "pcp":
                 st = cs.precip_stats(F, obs[var], lead, issue)
                 w = cs.weights_from_error(st["mae"], guardrails=False)
-                out[var] = {"sources": {m: {"mae": _num(st["mae"][m]), "weight": _num(w[m])}
+                out[var] = {"consensus_mae": _num(st["consensus_mae"]),
+                            "consensus_days": _int(st["consensus_days"]),
+                            "sources": {m: {"mae": _num(st["mae"][m]), "weight": _num(w[m]),
+                                            "days": _int(st["days"][m])}
                                         for m in names}}
             else:
                 st = cs.temperature_stats(F, obs[var], lead, issue)
                 w = cs.weights_from_error(st["mse"])
                 out[var] = {"consensus_mae": _num(st["consensus_mae"]),
+                            "consensus_days": _int(st["consensus_days"]),
                             "spread_ref": _num(st["spread_ref"]),
                             "sources": {m: {"habit_fix": _num(st["habit_fix"][m]),
-                                            "mse": _num(st["mse"][m]), "weight": _num(w[m])}
+                                            "mse": _num(st["mse"][m]), "weight": _num(w[m]),
+                                            "mae": _num(st["mae"][m]), "days": _int(st["days"][m]),
+                                            "bias_days": _int(st["bias_days"][m])}
                                         for m in names}}
         leads_out[str(lead)] = out
     seen = obs[(obs.index < issue)].dropna(how="all")
@@ -179,8 +203,10 @@ def build_scores(obs: pd.DataFrame, prev: dict, pool: list[str], issue: dt.date,
         normal_out = {d.isoformat(): {k: _num(N.at[d, k]) for k in ("tmax", "tmin", "pcp", "wet_share")}
                       for d in targets}
     return {
+        "format": SCORES_FORMAT,
         "issue_date": issue.isoformat(),
         "obs_through": seen.index.max().isoformat() if len(seen) else None,
+        "windows": windows(issue),
         "sources_with_history": sorted(short),
         "sources_missing": [m for m in pool if m not in short],
         "long_sources_with_history": sorted(long),
@@ -245,6 +271,35 @@ def live_scores(store: Path, place_id: str, obs: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=cols)
 
 
+def live_summary(store: Path, place_id: str, live: pd.DataFrame, issue: dt.date,
+                 leads=ALL_LEADS) -> dict:
+    """Our own record: every stored deterministic pull scored against the
+    station, per source, lead and variable, over the same 60 target days as
+    the archive window. One forecast per source, issue date and target: the
+    last pull fetched that issue date. A miss is given only with
+    LIVE_MIN_DAYS or more days; before that only the count."""
+    pulls = sorted(p.name for p in (store / place_id).glob("????-??-??") if p.is_dir())
+    since = pulls[0] if pulls else None
+    w = windows(issue)["miss"]
+    d = live[live["kind"] == "deterministic"].copy() if len(live) else live
+    if len(d):
+        d["target_date"] = pd.to_datetime(d["target_date"]).dt.date
+        d = d[(d["target_date"] >= dt.date.fromisoformat(w["from"]))
+              & (d["target_date"] <= dt.date.fromisoformat(w["to"]))]
+        d = d.sort_values("fetched_at").groupby(
+            ["source", "lead", "var", "issue_date", "target_date"], as_index=False).last()
+    out = {"since": since, "window": w, "min_days": LIVE_MIN_DAYS, "leads": {}}
+    for lead in leads:
+        x = d[d["lead"] == lead] if len(d) else d
+        lead_out = {"days": int(x["target_date"].nunique()) if len(x) else 0, "sources": {}}
+        for (m, var), g in (x.groupby(["source", "var"]) if len(x) else []):
+            n = int(g["target_date"].nunique())
+            lead_out["sources"].setdefault(m, {})[var] = {
+                "mae": _num(g["error"].abs().mean()) if n >= LIVE_MIN_DAYS else None, "days": n}
+        out["leads"][str(lead)] = lead_out
+    return out
+
+
 # --- the nightly job --------------------------------------------------------
 
 def already_scored(store: Path, place_id: str, issue: dt.date) -> bool:
@@ -257,7 +312,7 @@ def already_scored(store: Path, place_id: str, issue: dt.date) -> bool:
     s = json.loads(p.read_text())
     done = (issue - dt.timedelta(days=1)).isoformat()
     return (s.get("issue_date") == issue.isoformat() and (s.get("obs_through") or "") >= done
-            and not s.get("downloads_stale"))
+            and not s.get("downloads_stale") and s.get("format") == SCORES_FORMAT)
 
 
 def limit_losses(store: Path, place_id: str, issue: dt.date) -> list[dict]:
@@ -286,9 +341,10 @@ def score(place: dict, cfg: dict, store: Path, issue: dt.date | None = None,
     obs = eccc.parse_daily(obs_payload)
     long, normal = fetch_long(place, cfg, store, issue, get, fetch_normal, log, echo, stale)
     scores = build_scores(obs, prev, cfg["deterministic_pool"], issue, long, normal)
-    scores.update(place=pid, computed_at=iso(int(time.time())),
-                  truth=place["truth"], credit=[om.CREDIT, eccc.CREDIT], downloads_stale=stale)
-    _write_json(store / pid / "scores.json", scores)
     live = live_scores(store, pid, obs)
+    scores.update(place=pid, computed_at=iso(int(time.time())),
+                  truth=place["truth"], credit=[om.CREDIT, eccc.CREDIT], downloads_stale=stale,
+                  live=live_summary(store, pid, live, issue))
+    _write_json(store / pid / "scores.json", scores)
     live.to_csv(store / pid / "live_scores.csv", index=False)
     return {"scores": scores, "live": live}

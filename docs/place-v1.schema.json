@@ -123,6 +123,70 @@
         "so_far_hours": {"type": "integer", "minimum": 0, "maximum": 24}
       }
     },
+    "track_record": {
+      "description": "Optional (added 27 Nov 2026). How each source has done against the station, its weight today and its habit fix, at the leads in `leads`. Two kinds of numbers, never mixed: `archive` (each source's archived forecasts scored nightly, the numbers the weights come from) and `live` (our own saved forecasts, too few days at first). Temperatures deg C, rain mm.",
+      "type": "object",
+      "required": ["leads", "scored_on", "station_through", "archive", "live"],
+      "properties": {
+        "leads": {"type": "array", "items": {"$ref": "#/$defs/lead"}},
+        "scored_on": {"oneOf": [{"$ref": "#/$defs/date"}, {"type": "null"}]},
+        "station_through": {"oneOf": [{"$ref": "#/$defs/date"}, {"type": "null"}]},
+        "archive": {
+          "type": "object",
+          "required": ["basis", "miss_window", "bias_window", "min_days", "consensus", "sources"],
+          "properties": {
+            "basis": {"const": "archive"},
+            "miss_window": {"$ref": "#/$defs/window"},
+            "bias_window": {"$ref": "#/$defs/window"},
+            "min_days": {"type": "integer", "minimum": 1},
+            "consensus": {
+              "type": "array",
+              "items": {
+                "type": "object", "required": ["lead", "high", "low", "rain"],
+                "properties": {"lead": {"$ref": "#/$defs/lead"}, "high": {"$ref": "#/$defs/miss"},
+                               "low": {"$ref": "#/$defs/miss"}, "rain": {"$ref": "#/$defs/miss"}}
+              }
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object", "required": ["id", "lead"],
+                "properties": {"id": {"type": "string"}, "lead": {"$ref": "#/$defs/lead"},
+                               "high": {"$ref": "#/$defs/scored_temp"},
+                               "low": {"$ref": "#/$defs/scored_temp"},
+                               "rain": {"$ref": "#/$defs/scored_rain"}}
+              }
+            }
+          }
+        },
+        "live": {
+          "type": "object",
+          "required": ["basis", "since", "window", "min_days", "days", "consensus", "sources"],
+          "properties": {
+            "basis": {"const": "live"},
+            "since": {"oneOf": [{"$ref": "#/$defs/date"}, {"type": "null"}]},
+            "window": {"$ref": "#/$defs/window"},
+            "min_days": {"type": "integer", "minimum": 1},
+            "days": {
+              "type": "array",
+              "items": {"type": "object", "required": ["lead", "days"],
+                        "properties": {"lead": {"$ref": "#/$defs/lead"},
+                                       "days": {"type": "integer", "minimum": 0}}}
+            },
+            "consensus": {"type": ["array", "null"], "description": "Null today: our own published consensus is not recorded yet. Later an array shaped like archive.consensus."},
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object", "required": ["id", "lead"],
+                "properties": {"id": {"type": "string"}, "lead": {"$ref": "#/$defs/lead"},
+                               "high": {"$ref": "#/$defs/miss"}, "low": {"$ref": "#/$defs/miss"},
+                               "rain": {"$ref": "#/$defs/miss"}}
+              }
+            }
+          }
+        }
+      }
+    },
     "credits": {
       "type": "array", "minItems": 1,
       "items": {
@@ -137,6 +201,31 @@
     "utc": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
     "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
     "percent": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
-    "record": {"type": "string", "description": "minute or hourly; readers must accept other values."}
+    "record": {"type": "string", "description": "minute or hourly; readers must accept other values."},
+    "lead": {"type": "integer", "minimum": 1, "maximum": 14},
+    "count": {"type": ["integer", "null"], "minimum": 0},
+    "window": {
+      "type": "object", "required": ["from", "to", "days"],
+      "properties": {"from": {"$ref": "#/$defs/date"}, "to": {"$ref": "#/$defs/date"},
+                     "days": {"type": "integer", "minimum": 1}}
+    },
+    "miss": {
+      "type": "object", "required": ["miss", "days"],
+      "properties": {"miss": {"type": ["number", "null"], "minimum": 0}, "days": {"$ref": "#/$defs/count"}}
+    },
+    "scored_temp": {
+      "type": "object", "required": ["weight", "miss", "days", "bias", "bias_days"],
+      "properties": {"weight": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+                     "miss": {"type": ["number", "null"], "minimum": 0},
+                     "days": {"$ref": "#/$defs/count"},
+                     "bias": {"type": ["number", "null"]},
+                     "bias_days": {"$ref": "#/$defs/count"}}
+    },
+    "scored_rain": {
+      "type": "object", "required": ["weight", "miss", "days"],
+      "properties": {"weight": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+                     "miss": {"type": ["number", "null"], "minimum": 0},
+                     "days": {"$ref": "#/$defs/count"}}
+    }
   }
 }

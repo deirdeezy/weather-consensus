@@ -8,6 +8,7 @@ One file per place: `public/<place>.json` (for example `public/kitimat.json`), w
 - **Decode `tier` as a string,** not a closed enum. Unknown values: fall back to the tier the app works out from `certainty`.
 - **`schema_version` changes only for a breaking change** (a field removed, renamed, or its type or meaning changed). If that ever happens, version 1 keeps being published at the old path until old app versions are gone, and the new version goes to a new path (`public/v2/<place>.json`). An app that sees a `schema_version` it does not know should show "Update the app" rather than guess.
 - **Units are metric.** The app converts (deg F = deg C x 1.8 + 32; in = mm / 25.4).
+- **`track_record` is optional.** Older files and places scored before 27 Nov 2026 do not have it. Never fill it from anything else. Its two parts, `archive` and `live`, are different kinds of numbers: show which one a number is, and never put them side by side as if they were the same.
 - **`now` is optional.** Only places with an approved station have it. If it is missing, hide every observed value; never fill them from a forecast.
 - **Work out staleness yourself as well.** If the backend stops, no new file is written, so `stale` can never turn true. The app should also treat data as stale when `issued_at` or `fresh_data_at` is older than `stale_after_hours`.
 
@@ -28,6 +29,7 @@ One file per place: `public/<place>.json` (for example `public/kitimat.json`), w
 | `days` | array | Days 1 to 14 in order. See below. |
 | `credits` | array | `{"text", "licence", "url", "licence_url"}`. Show every `text` in About. |
 | `now` | object, optional | Latest station observation (see below). Added 25 Nov 2026 without a version change. |
+| `track_record` | object, optional | How each source has done against the station, its weight today and its habit fix (see below). Added 27 Nov 2026 without a version change. |
 
 ## `place`
 | Field | Type | Meaning |
@@ -56,6 +58,53 @@ Notes:
 - Weights are for the high only. Sources whose run does not reach a day get no weight that day (for example ICON and UK Met Office stop near day 6, Meteo-France near day 3), so `weights` can change length from day to day.
 - `normal` is the 1991 to 2020 climate normal, one more source from day 8 (highs and lows) as set by the horizon test (`docs/ALGORITHM.md`).
 - Precipitation weights are not published (version 1 has one source bar per day, for the high).
+
+## `track_record` (optional)
+What the Consensus tab shows in step 2 ("We check their homework") and step 3 ("We fix their habits"). Written by `backend/wxc/publish.py` from the nightly `scores.json` (`backend/wxc/score.py`). Temperatures are deg C (a miss or a bias converts as x 1.8 for deg F, with no +32); rain is mm (in = mm / 25.4).
+
+Two kinds of numbers, each labelled by `basis`:
+- `archive`: each source's archived forecasts (Open-Meteo Previous Runs for days 1 to 7, Single Runs from 00 UTC for days 8 to 14) scored against the place's truth station by the nightly job. These are the numbers today's weights and habit fixes come from. A rolling backtest on archived data, not our own record.
+- `live`: our own saved forecasts (every hourly pull since `since`) scored against the same station. A miss is given only once a source has `min_days` days; before that only the count. The record started on 25 Nov 2026, so it is too short to mean anything until about the end of December 2026.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `leads` | array of integers | Lead days covered: `[1, 7, 13]` today (as the day 1, 7 and 13 bars on the Consensus tab). |
+| `scored_on` | date or null | Issue date of the nightly scores (same as `weights_as_of`). |
+| `station_through` | date or null | Last day the station had reported when scored (ECCC posts a day or two late). |
+| `archive.basis` | string | `archive`. |
+| `archive.miss_window` | object | `{"from", "to", "days"}`: the target dates a miss covers (60 days ending the day before `scored_on`). The same window at every lead. |
+| `archive.bias_window` | object | The same for the habit fix (30 days). |
+| `archive.min_days` | integer | `20`: a 60-day window needs this many days before it gives a miss (the algorithm's own minimum). |
+| `archive.consensus[]` | array | Per lead: `{"lead", "high", "low", "rain"}`, each `{"miss", "days"}`: the consensus's own average miss when rebuilt on the same archived forecasts with the same rules. |
+| `archive.sources[]` | array | Per source and lead: `{"id", "lead", "high", "low", "rain"}`. A variable is missing when the source has no score for it at that lead. |
+| `...high`, `...low` | object | `weight`: share in today's published consensus for that lead and variable (0 to 1, 3 decimals; `high` equals `days[].weights`), null if the source has no forecast in today's blend (its run does not reach that day, it is late, or the normal before it joins). `miss`: average absolute miss of the raw forecast before the habit fix, deg C, null with fewer than `min_days` days. `days`: days behind the miss. `bias`: the habit, the average of forecast minus observed over `bias_window`, deg C: positive runs warm (the habit fix takes it off), negative runs cold (the fix adds it). `bias_days`: days behind it (the fix needs 10). |
+| `...rain` | object | `weight`, `miss` (mm) and `days`, as above. Rain has no habit fix. |
+| `live.basis` | string | `live`. |
+| `live.since` | date or null | Issue date of our first saved forecast. |
+| `live.window` | object | Same 60 days as `archive.miss_window`. |
+| `live.min_days` | integer | `20`, as for the archive. |
+| `live.days[]` | array | `{"lead", "days"}`: how many target days our own record has scored at that lead. Fewer than `min_days`: show "too few days" with the count, never a number from `archive` in its place. |
+| `live.consensus` | null | Our own published consensus is not recorded yet, so there is no live consensus miss. Readers must accept an array shaped like `archive.consensus` later. |
+| `live.sources[]` | array | `{"id", "lead", "high", "low", "rain"}`, each `{"miss", "days"}`; `miss` null under `min_days`. Deterministic sources only; one forecast per source, issue date and target: the last pull of the issue date. |
+
+Notes:
+- A miss is the plain average absolute error (the canvas's "average miss"). Weights come from the error left after the habit fix (inverse 60-day squared error), so a source with a steady habit can have a large miss and still a fair weight.
+- `normal` appears with a weight from day 8 (highs and lows) and day 10 (rain), as in `days[].weights`; it is scored and has a bias at every lead it is in.
+- `scored_on` can be a day behind `issue_date` before the nightly run.
+
+Example (real data, Kitimat, scored on issue date 26 Nov 2026 from the `data` branch; day 1 shortened to two sources):
+
+```json
+"track_record": {"leads": [1, 7, 13], "scored_on": "2026-11-26", "station_through": "2026-11-24",
+  "archive": {"basis": "archive", "miss_window": {"from": "2026-09-27", "to": "2026-11-25", "days": 60}, "bias_window": {"from": "2026-10-27", "to": "2026-11-25", "days": 30}, "min_days": 20,
+    "consensus": [{"lead": 1, "high": {"miss": 0.96, "days": 59}, "low": {"miss": 0.78, "days": 59}, "rain": {"miss": 3.03, "days": 59}}, ...],
+    "sources": [
+      {"id": "gem_seamless", "lead": 1, "high": {"weight": 0.146, "miss": 1.03, "days": 59, "bias": 0.57, "bias_days": 29}, "low": {"weight": 0.107, "miss": 1.14, "days": 59, "bias": 0.51, "bias_days": 29}, "rain": {"weight": 0.132, "miss": 3.33, "days": 59}},
+      {"id": "meteofrance_seamless", "lead": 1, "high": {"weight": 0.093, "miss": 2.83, "days": 59, "bias": 3.49, "bias_days": 29}, "low": {"weight": 0.082, "miss": 4.13, "days": 59, "bias": 4.44, "bias_days": 29}, "rain": {"weight": 0.084, "miss": 5.22, "days": 59}},
+      ...]},
+  "live": {"basis": "live", "since": "2026-11-25", "window": {"from": "2026-09-27", "to": "2026-11-25", "days": 60}, "min_days": 20,
+    "days": [{"lead": 1, "days": 0}, {"lead": 7, "days": 0}, {"lead": 13, "days": 0}], "consensus": null, "sources": []}}
+```
 
 ## `now` (optional)
 The latest observation at the place's approved station (the newest minute or hourly record, value by value), and what the station has seen so far in the current climate day. Written by `backend/wxc/obs.py` from ECCC's real-time SWOB (MSC GeoMet `swob-realtime`). Observations, not a forecast: the name `today` is kept for a later lead 0 forecast, and `days` still starts at day 1.

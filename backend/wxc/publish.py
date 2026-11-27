@@ -37,7 +37,7 @@ from . import horizon as hz
 from . import obs
 from .daily import CLIMATE_DAY_OFFSET_H
 from .refresh import _write_json, iso, load_state, refusal_logger
-from .score import ALL_LEADS, NORMAL, _daily_from_pull
+from .score import ALL_LEADS, LIVE_MIN_DAYS, NORMAL, _daily_from_pull
 
 SCHEMA_VERSION = 1
 STALE_AFTER_H = 6     # no new pull for this long: stale (CLAUDE.md, reliability)
@@ -120,13 +120,13 @@ def _temperature(F: pd.Series, st: dict):
 
 def _precip(F: pd.Series, st: dict):
     """Inverse-MAE weighted amount among sources present (no guardrails),
-    as consensus.precip_consensus."""
+    as consensus.precip_consensus. Returns the amount and the shares used."""
     mae = pd.Series({m: v.get("mae") for m, v in st.items()}, dtype=float)
     F = F[[m for m in F.index if m in st]].dropna()
     w = (1.0 / mae.reindex(F.index)).replace([np.inf, -np.inf], np.nan).dropna()
     if w.empty:
-        return float("nan")
-    return float((F[w.index] * w).sum() / w.sum())
+        return float("nan"), w
+    return float((F[w.index] * w).sum() / w.sum()), w / w.sum()
 
 
 def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFrame | None,
@@ -144,6 +144,7 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
     N = hz.normal_for(normal, targets) if normal is not None else None
     labels = cfg.get("labels", {})
     shown = set()
+    used_weights = {}
     days = []
     for L, T in zip(ALL_LEADS, targets):
         row = {}
@@ -151,9 +152,10 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
             row[var] = pd.Series({m: p["daily"][var].get(T, np.nan) if var in p["daily"] else np.nan
                                   for m, p in used.items()}, dtype=float)
         hi, spread, w = _temperature(_with_normal(row["tmax"], N, T, "tmax", L), _stats(scores, L, "tmax"))
-        lo, _, _ = _temperature(_with_normal(row["tmin"], N, T, "tmin", L), _stats(scores, L, "tmin"))
-        mm = _precip(_with_normal(row["pcp"], N, T, "pcp", L, hz.PCP_NORMAL_FROM_LEAD),
-                     _stats(scores, L, "pcp"))
+        lo, _, w_lo = _temperature(_with_normal(row["tmin"], N, T, "tmin", L), _stats(scores, L, "tmin"))
+        mm, w_pcp = _precip(_with_normal(row["pcp"], N, T, "pcp", L, hz.PCP_NORMAL_FROM_LEAD),
+                            _stats(scores, L, "pcp"))
+        used_weights[L] = {"tmax": w, "tmin": w_lo, "pcp": w_pcp}
         models_pcp = row["pcp"].dropna()
         pop = float((models_pcp >= cs.WET_MM).mean()) if len(models_pcp) else float("nan")
         if N is not None and L >= hz.POP_MIX_FROM_LEAD and not math.isnan(pop):
@@ -208,9 +210,98 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
         "days": days,
         "credits": [OPEN_METEO, ECCC],
     }
+    record = track_record(scores, used_weights, [s["id"] for s in sources])
+    if record:
+        doc["track_record"] = record
     if now_block:  # only for a place with an approved station (backend/wxc/obs.py)
         doc["now"] = now_block
     return doc
+
+
+# --- the track record (Consensus tab, steps 2 and 3) --------------------------
+
+TRACK_LEADS = (1, 7, 13)  # the leads the Consensus tab shows (as its day 1, 7 and 13 bars)
+VARS = (("high", "tmax"), ("low", "tmin"), ("rain", "pcp"))
+
+
+def _entry(st: dict, weight, temperature: bool) -> dict:
+    e = {"weight": _r(weight, 3), "miss": _r(st.get("mae"), 2), "days": st.get("days")}
+    if temperature:
+        e["bias"] = _r(st.get("habit_fix"), 2)
+        e["bias_days"] = st.get("bias_days")
+    return e
+
+
+def track_record(scores: dict, used: dict, order: list[str]) -> dict | None:
+    """Each source's recent miss, today's weight and habit fix at TRACK_LEADS,
+    labelled by where the numbers come from:
+    - archive: the nightly scoring of each source's archived forecasts (Open-
+      Meteo Previous Runs, days 1 to 7; Single Runs, days 8 to 14) against the
+      station; the same numbers the weights and habit fixes come from.
+    - live: our own saved forecasts against the station (since 25 Nov 2026);
+      a miss only once LIVE_MIN_DAYS are in, otherwise the count alone.
+    Never mixed: a reader picks one. None until scores.json has the fields
+    (score.py SCORES_FORMAT 2), so an older scores.json publishes no block."""
+    if scores.get("format", 1) < 2 or "windows" not in scores:
+        return None
+    rank = {m: i for i, m in enumerate(order)}
+    leads = [L for L in TRACK_LEADS if str(L) in scores.get("leads", {})]
+    consensus, sources = [], []
+    for L in leads:
+        stats = scores["leads"][str(L)]
+        c = {"lead": L}
+        for name, var in VARS:
+            v = stats.get(var) or {}
+            c[name] = {"miss": _r(v.get("consensus_mae"), 2), "days": v.get("consensus_days")}
+        consensus.append(c)
+        ids = sorted({m for _, var in VARS for m in (stats.get(var) or {}).get("sources", {})},
+                     key=lambda m: (rank.get(m, len(rank)), m))
+        for m in ids:
+            e = {"id": m, "lead": L}
+            for name, var in VARS:
+                st = ((stats.get(var) or {}).get("sources") or {}).get(m)
+                if st is None:
+                    continue
+                w = (used.get(L) or {}).get(var)
+                weight = None if w is None or m not in w.index or pd.isna(w[m]) else w[m]
+                e[name] = _entry(st, weight, var != "pcp")
+            if any(e.get(n) and (e[n]["miss"] is not None or e[n]["weight"] is not None)
+                   for n, _ in VARS):
+                sources.append(e)
+    live = scores.get("live") or {}
+    live_leads = live.get("leads") or {}
+    live_sources = []
+    for L in leads:
+        for m, vs in sorted((live_leads.get(str(L)) or {}).get("sources", {}).items(),
+                            key=lambda t: (rank.get(t[0], len(rank)), t[0])):
+            e = {"id": m, "lead": L}
+            for name, var in VARS:
+                if var in vs:
+                    e[name] = {"miss": _r(vs[var].get("mae"), 2), "days": vs[var].get("days")}
+            live_sources.append(e)
+    return {
+        "leads": leads,
+        "scored_on": scores.get("issue_date"),
+        "station_through": scores.get("obs_through"),
+        "archive": {
+            "basis": "archive",
+            "miss_window": scores["windows"]["miss"],
+            "bias_window": scores["windows"]["bias"],
+            "min_days": LIVE_MIN_DAYS,
+            "consensus": consensus,
+            "sources": sources,
+        },
+        "live": {
+            "basis": "live",
+            "since": live.get("since"),
+            "window": live.get("window") or scores["windows"]["miss"],
+            "min_days": live.get("min_days", LIVE_MIN_DAYS),
+            "days": [{"lead": L, "days": (live_leads.get(str(L)) or {}).get("days", 0)}
+                     for L in leads],
+            "consensus": None,
+            "sources": live_sources,
+        },
+    }
 
 
 def _with_normal(F: pd.Series, N, T, var: str, lead: int,
