@@ -369,8 +369,11 @@ extension ForecastScreenModel {
     /// asset left out of archives), never the network. `offline: true` makes every refresh fail as offline.
     /// `withNow: true` adds the real Kitimat Forest Ave observation of 25 Nov 2026 21:00 UTC
     /// (`PreviewContent/preview-now-kitimat-2026-11-25T2100Z.json`, as the backend published it) as the `now` block.
-    static func previewFixture(offline: Bool = false, withNow: Bool = false) -> ForecastScreenModel {
-        let url = Bundle.main.url(forResource: "preview-fixture-kitimat-2026-11-25T0407Z", withExtension: "json")!
+    /// `trackRecord`: the file scored and published locally on 27 Nov 2026 00:49 UTC from the `data` branch
+    /// with the track record code (real data, before the live file had the block), instead of the 25 Nov file.
+    static func previewFixture(offline: Bool = false, withNow: Bool = false, trackRecord: Bool = false) -> ForecastScreenModel {
+        let name = trackRecord ? "preview-track-record-kitimat-2026-11-27T0049Z" : "preview-fixture-kitimat-2026-11-25T0407Z"
+        let url = Bundle.main.url(forResource: name, withExtension: "json")!
         var data = try! Data(contentsOf: url)
         if withNow {
             let nowURL = Bundle.main.url(forResource: "preview-now-kitimat-2026-11-25T2100Z", withExtension: "json")!

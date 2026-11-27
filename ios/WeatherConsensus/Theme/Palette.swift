@@ -87,6 +87,16 @@ nonisolated enum Palette {
         }
     }
 
+    /// Habit fix pill (canvas step 3): adding (the source runs cold) in the canvas orange tint,
+    /// taking off (runs warm) in the canvas blue tint, no fix in grey.
+    static func fixPill(_ direction: TrackRecordText.FixDirection) -> (fill: RGB, ink: RGB) {
+        switch direction {
+        case .up: (RGB(0xFFE8DC), RGB(0x8A3510))
+        case .down: (RGB(0xE4EEFB), RGB(0x174EA8))
+        case .none: (RGB(0xEEF3FA), ink)
+        }
+    }
+
     static func tier(_ tier: CertaintyTier?) -> RGB {
         switch tier {
         case .high: tierHigh

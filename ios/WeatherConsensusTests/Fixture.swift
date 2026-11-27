@@ -41,6 +41,27 @@ enum Fixture {
     }
 
     enum FixtureError: Error { case missing }
+
+    /// A second real file: `kitimat.json` scored and published on this Mac on 27 Nov 2026 00:49 UTC from a copy of
+    /// the `data` branch with the track record code (issued_at 2026-11-27T00:49:39Z), before the live file had
+    /// `track_record`. Real data, not sample data. File: `Fixtures/fixture-kitimat-track-record-2026-11-27T0049Z.json`.
+    static let trackRecordName = "fixture-kitimat-track-record-2026-11-27T0049Z"
+
+    static func trackRecordData() throws -> Data {
+        let bundle = Bundle(for: BundleToken.self)
+        guard let url = bundle.url(forResource: trackRecordName, withExtension: "json")
+            ?? bundle.url(forResource: trackRecordName, withExtension: "json", subdirectory: "Fixtures")
+        else { throw FixtureError.missing }
+        return try Data(contentsOf: url)
+    }
+
+    static func trackRecordForecast() throws -> PlaceForecast {
+        try ForecastDecoder.decode(trackRecordData())
+    }
+
+    static func trackRecordObject() throws -> [String: Any] {
+        try JSONSerialization.jsonObject(with: trackRecordData()) as! [String: Any]
+    }
 }
 
 /// A fresh, empty store folder in the test run's temporary directory.

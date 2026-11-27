@@ -25,6 +25,8 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
     let credits: [Credit]
     /// Latest station observation. Only places with an approved station have it (docs/JSON_SCHEMA.md).
     let now: StationObservation?
+    /// Each source's track record and habit fix. Older files do not have it (docs/JSON_SCHEMA.md).
+    let trackRecord: TrackRecord?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -37,11 +39,13 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         case staleAfterHours = "stale_after_hours"
         case weightsAsOf = "weights_as_of"
         case units, sources, days, credits, now
+        case trackRecord = "track_record"
     }
 
     init(schemaVersion: Int, place: Place, issuedAt: Date, issueDate: LocalDate, newestRunAt: Date?,
          freshDataAt: Date?, stale: Bool, staleAfterHours: Double, weightsAsOf: LocalDate?, units: Units,
-         sources: [Source], days: [Day], credits: [Credit], now: StationObservation? = nil) {
+         sources: [Source], days: [Day], credits: [Credit], now: StationObservation? = nil,
+         trackRecord: TrackRecord? = nil) {
         self.schemaVersion = schemaVersion
         self.place = place
         self.issuedAt = issuedAt
@@ -56,10 +60,11 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         self.days = days
         self.credits = credits
         self.now = now
+        self.trackRecord = trackRecord
     }
 
-    /// As synthesized, except `now`: optional, and a block that cannot be read is dropped (logged nowhere,
-    /// shown as no observation) so it can never cost the forecast.
+    /// As synthesized, except `now` and `track_record`: optional, and a block that cannot be read is dropped
+    /// (logged nowhere, shown as not there) so it can never cost the forecast.
     init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
@@ -76,6 +81,7 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         days = try c.decode([Day].self, forKey: .days)
         credits = try c.decode([Credit].self, forKey: .credits)
         now = c.lenient(StationObservation.self, .now)
+        trackRecord = c.lenient(TrackRecord.self, .trackRecord)
     }
 
     nonisolated struct Place: Codable, Equatable, Sendable {

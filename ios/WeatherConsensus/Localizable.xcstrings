@@ -101,6 +101,23 @@
         }
       }
     },
+    "%@: average miss %@ over %@" : {
+      "comment" : "VoiceOver: track record row. Values: source, miss with unit, days.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: average miss %2$@ over %3$@"
+          }
+        }
+      }
+    },
+    "%lld days" : {
+      "comment" : "Number of days scored"
+    },
+    "%lld days ahead" : {
+      "comment" : "VoiceOver: track record lead day"
+    },
     "%lld forecast models" : {
       "comment" : "Step 1 heading over the model chips; counted from the file"
     },
@@ -120,6 +137,9 @@
           }
         }
       }
+    },
+    "1 day" : {
+
     },
     "1 forecast model" : {
 
@@ -170,6 +190,29 @@
     },
     "Air temperature" : {
       "comment" : "Feels like: no wind chill or humidex, so the air temperature"
+    },
+    "Archived runs" : {
+      "comment" : "Track record picker: numbers from each source's archived forecasts"
+    },
+    "Average miss, day %lld highs" : {
+      "comment" : "Track record chart heading"
+    },
+    "Average miss, day %lld lows" : {
+      "comment" : "Track record chart heading"
+    },
+    "Average miss, day %lld rain" : {
+      "comment" : "Track record chart heading; rain includes snow as water"
+    },
+    "Averaged over the %lld days %@ to %@, from the same archived forecasts as step 2. Rain has no habit fix: amounts are weighted as they are." : {
+      "comment" : "Step 3 note. Values: window length, first and last date.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Averaged over the %1$lld days %2$@ to %3$@, from the same archived forecasts as step 2. Rain has no habit fix: amounts are weighted as they are."
+          }
+        }
+      }
     },
     "CC BY 4.0 licence" : {
 
@@ -225,7 +268,7 @@
 
     },
     "Consensus" : {
-
+      "comment" : "Track record chart: the row for our blended forecast"
     },
     "Consensus only" : {
       "comment" : "A place with no station of its own"
@@ -257,6 +300,9 @@
     "Day %lld" : {
       "comment" : "Lead day, 1 to 14"
     },
+    "Day %lld habits" : {
+      "comment" : "Step 3 heading over the habit list"
+    },
     "Delivered by" : {
 
     },
@@ -280,6 +326,15 @@
     },
     "ECMWF AI" : {
       "comment" : "Source name: ECMWF's AI model (AIFS)"
+    },
+    "Each row covers %@ unless it says otherwise." : {
+      "comment" : "Track record: the usual number of days behind each average"
+    },
+    "Each source's habit fix is not in this forecast file yet." : {
+      "comment" : "Step 3 when the file has no track record (older file)"
+    },
+    "Each source's track record is not in this forecast file yet." : {
+      "comment" : "Step 2 when the file has no track record (older file)"
     },
     "Env. Canada" : {
       "comment" : "Source name: Environment and Climate Change Canada's GEM model"
@@ -308,11 +363,39 @@
     "Feels like" : {
 
     },
+    "Forecast range" : {
+      "comment" : "VoiceOver: track record picker for day 1, 7 or 13"
+    },
     "Forecasts" : {
 
     },
     "From %@" : {
       "comment" : "Wind direction, e.g. From NNE"
+    },
+    "From each source's archived forecasts, scored against %@ for the %lld days %@ to %@. Not our own record." : {
+      "comment" : "Track record source line. Values: station, window length, first and last date.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "From each source's archived forecasts, scored against %1$@ for the %2$lld days %3$@ to %4$@. Not our own record."
+          }
+        }
+      }
+    },
+    "From each source's archived forecasts, scored against the station. Not our own record." : {
+
+    },
+    "From our own saved forecasts, scored against %@ over the last %lld days. Our consensus itself is not recorded yet." : {
+      "comment" : "Track record source line for our own record",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "From our own saved forecasts, scored against %1$@ over the last %2$lld days. Our consensus itself is not recorded yet."
+          }
+        }
+      }
     },
     "Further out, the consensus shifts" : {
 
@@ -331,6 +414,24 @@
     },
     "High %@" : {
       "comment" : "Now card: observed high so far"
+    },
+    "High temperatures" : {
+      "comment" : "VoiceOver: the Highs option"
+    },
+    "Highs" : {
+      "comment" : "Track record picker: daily highs"
+    },
+    "Highs right on average here" : {
+
+    },
+    "Highs run %@ cold here" : {
+      "comment" : "Step 3: a source's highs are too cold on average"
+    },
+    "Highs run %@ warm here" : {
+      "comment" : "Step 3: a source's highs are too warm on average"
+    },
+    "Highs: too few days for a habit fix" : {
+
     },
     "How %lld sources and the normal reached consensus" : {
 
@@ -410,6 +511,24 @@
     "Low %@" : {
       "comment" : "Now card: observed low so far"
     },
+    "Low temperatures" : {
+      "comment" : "VoiceOver: the Lows option"
+    },
+    "Lows" : {
+      "comment" : "Track record picker: daily lows"
+    },
+    "Lows right on average here" : {
+
+    },
+    "Lows run %@ cold here" : {
+      "comment" : "Step 3: a source's lows are too cold on average"
+    },
+    "Lows run %@ warm here" : {
+      "comment" : "Step 3: a source's lows are too warm on average"
+    },
+    "Lows: too few days for a habit fix" : {
+
+    },
     "Made in Kitimat, BC" : {
       "comment" : "About footer"
     },
@@ -469,6 +588,15 @@
     },
     "Not every model runs two weeks ahead, and each one's track record changes with the range, so the blend changes from day to day." : {
       "comment" : "Step 4 text under the day 1, 7 and 13 bars"
+    },
+    "Not in today's blend" : {
+
+    },
+    "Not recorded yet" : {
+      "comment" : "Track record: our own consensus is not saved yet, so it has no live score"
+    },
+    "Numbers from" : {
+      "comment" : "VoiceOver: track record picker, archived forecasts or our own record"
     },
     "Observed at %@" : {
       "comment" : "Now card label for an old observation. Value: station name"
@@ -555,6 +683,26 @@
     "Opens the Weather tab" : {
 
     },
+    "Our own record" : {
+      "comment" : "Track record: heading over the live record note"
+    },
+    "Our own record has not started here yet." : {
+      "comment" : "Track record: no live record"
+    },
+    "Our own record started %@: %lld of the %lld days needed for day %lld so far. Too few to score, so none of it is shown yet." : {
+      "comment" : "Track record: live record too short. Values: start date, days so far, days needed, lead day.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Our own record started %1$@: %2$lld of the %3$lld days needed for day %4$lld so far. Too few to score, so none of it is shown yet."
+          }
+        }
+      }
+    },
+    "Our record" : {
+      "comment" : "Track record picker: numbers from our own saved forecasts"
+    },
     "Out of 10 days like this, about %lld land within %@ of our forecast high." : {
       "comment" : "Opened day row, under the 10 dots",
       "localizations" : {
@@ -597,6 +745,12 @@
 
     },
     "Rain" : {
+      "comment" : "Track record picker: precipitation amount"
+    },
+    "Rain and snow amount" : {
+      "comment" : "VoiceOver: the Rain option (precipitation, snow as water)"
+    },
+    "Rain has no habit fix: amounts are weighted as they are." : {
 
     },
     "Read the licence" : {
@@ -610,6 +764,9 @@
     },
     "SOURCE" : {
 
+    },
+    "Score" : {
+      "comment" : "VoiceOver: track record picker for highs, lows or rain"
     },
     "Settings" : {
 
@@ -631,6 +788,9 @@
     },
     "Stale: no new forecast data in over %lld hours. Numbers may be out of date." : {
 
+    },
+    "Station data through %@." : {
+      "comment" : "Track record: the last day the station had reported"
     },
     "Station-checked" : {
       "comment" : "A place whose forecasts are scored against a weather station"
@@ -690,6 +850,12 @@
     "The app never asks for your location. Places are fixed names, not where you are." : {
 
     },
+    "The fix adds %@" : {
+
+    },
+    "The fix takes %@ off" : {
+
+    },
     "The latest forecast file is saved on the phone too, so the forecast still shows when you are offline. Each new file replaces the old one. Deleting the app deletes all of it." : {
 
     },
@@ -704,6 +870,9 @@
     },
     "To show the forecast, the app downloads a public forecast file for each place from GitHub Pages. The file is the same for everyone. The app adds nothing about you to the request: no account, no device identifier, no location and no settings." : {
 
+    },
+    "Too few days (%lld)" : {
+      "comment" : "Track record row with too few scored days for an average. Value: days scored."
     },
     "UK Met Office" : {
       "comment" : "Source name, do not translate"
@@ -782,6 +951,23 @@
     "Weather data by Open-Meteo.com, under the Creative Commons Attribution 4.0 International licence (CC BY 4.0). We change the data: each source's forecasts are corrected for local habits and blended into one consensus." : {
 
     },
+    "Weight" : {
+      "comment" : "Track record chart column: today's share in the consensus"
+    },
+    "Weight is each source's share of today's consensus for %@, day %lld. It comes from the miss left after the habit fix (step 3), so a source with a steady habit can miss by more and still count. A dash: not in today's blend." : {
+      "comment" : "Track record note under the chart. Values: highs/lows/rain, lead day.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Weight is each source's share of today's consensus for %1$@, day %2$lld. It comes from the miss left after the habit fix (step 3), so a source with a steady habit can miss by more and still count. A dash: not in today's blend."
+          }
+        }
+      }
+    },
+    "Weight today %@" : {
+
+    },
     "What %@ looks like" : {
 
     },
@@ -811,6 +997,12 @@
     },
     "consensus" : {
       "comment" : "Small label under the blended bar in the hero diagram"
+    },
+    "degrees Celsius" : {
+
+    },
+    "degrees Fahrenheit" : {
+
     },
     "east" : {
 
@@ -871,6 +1063,9 @@
 
     },
     "northwest" : {
+
+    },
+    "over %@" : {
 
     },
     "south" : {

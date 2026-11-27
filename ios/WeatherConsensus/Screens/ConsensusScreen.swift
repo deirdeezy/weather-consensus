@@ -279,7 +279,7 @@ nonisolated enum ConsensusText {
 // MARK: - Shared pieces
 
 /// Small caps heading inside a card (canvas: 11.5 pt, extra bold, tracked).
-private struct CapsHead: View {
+struct CapsHead: View {
     let text: String
 
     var body: some View {
@@ -548,19 +548,23 @@ private struct HomeworkStep: View {
                         FactTile(label: ConsensusText.latestScores, value: ValueText.date(asOf))
                     }
                 }
+                TrackRecordChart(facts: TrackRecordFacts(facts.forecast), stationName: station.name)
+                    .padding(.top, 4)
             }
         }
     }
 }
 
-/// Step 3: text only (the per-source fixes are not in schema v1).
+/// Step 3: each source's habit fix from `track_record` (a note when the file has none).
 private struct HabitsStep: View {
     let facts: ConsensusFacts
 
     var body: some View {
         StepCard(number: 3, title: ConsensusText.habitsTitle,
                  text: ConsensusText.habitsText(placeName: facts.placeName)) {
-            EmptyView()
+            if !facts.forecast.place.consensusOnly {
+                HabitList(facts: TrackRecordFacts(facts.forecast))
+            }
         }
     }
 }
@@ -760,6 +764,11 @@ struct CertaintyByDayChart: View {
     ConsensusScreen(model: .previewFixture())
         .environment(\.nowOverride, PreviewClock.afternoon)
         .dynamicTypeSize(.accessibility5)
+}
+
+#Preview("Consensus, track record (27 Nov file)") {
+    ConsensusScreen(model: .previewFixture(trackRecord: true))
+        .environment(\.nowOverride, PreviewClock.afternoon)
 }
 
 #Preview("Step 4 source bars, largest text") {

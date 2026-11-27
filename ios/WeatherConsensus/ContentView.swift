@@ -143,6 +143,7 @@ enum ConsensusGlyph {
 /// - `-fixture`: show the saved 25 Nov 2026 file (real data) instead of the network.
 /// - `-offline`: with `-fixture`, every refresh fails as offline.
 /// - `-withNow`: with `-fixture`, add the real 25 Nov 2026 21:00 UTC Kitimat Forest Ave observation as `now`.
+/// - `-trackRecord`: with `-fixture`, use the 27 Nov 2026 file with the track record (real data, scored locally).
 /// - `-now 2026-11-25T16:30:00Z`: pretend it is this time (for the stale-data case).
 /// - `-tab consensus`: open on that tab.
 /// - `-settings` (or `-settings about`, `privacy`, `acknowledgements`): open the Settings sheet, on that page.
@@ -153,7 +154,8 @@ enum DebugLaunch {
 
     static func model() -> ForecastScreenModel? {
         guard arguments.contains("-fixture") else { return nil }
-        return .previewFixture(offline: arguments.contains("-offline"), withNow: arguments.contains("-withNow"))
+        return .previewFixture(offline: arguments.contains("-offline"), withNow: arguments.contains("-withNow"),
+                               trackRecord: arguments.contains("-trackRecord"))
     }
 
     /// `-tab consensus`: open on this tab (screenshots).
