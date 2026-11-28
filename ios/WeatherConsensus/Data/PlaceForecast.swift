@@ -29,6 +29,11 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
     let trackRecord: TrackRecord?
     /// Pointer to the place's backtest file (the tested card). Only places with a backtest have it.
     let backtestFile: BacktestRef?
+    // Beta (28 Nov 2026), unverified: Data/BetaForecast.swift.
+    let today: TodayForecast?
+    let hourly: ForecastSeries?
+    let blocks: ForecastSeries?
+    let verification: Verification?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -43,12 +48,14 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         case units, sources, days, credits, now
         case trackRecord = "track_record"
         case backtestFile = "backtest_file"
+        case today, hourly, blocks, verification
     }
 
     init(schemaVersion: Int, place: Place, issuedAt: Date, issueDate: LocalDate, newestRunAt: Date?,
          freshDataAt: Date?, stale: Bool, staleAfterHours: Double, weightsAsOf: LocalDate?, units: Units,
          sources: [Source], days: [Day], credits: [Credit], now: StationObservation? = nil,
-         trackRecord: TrackRecord? = nil, backtestFile: BacktestRef? = nil) {
+         trackRecord: TrackRecord? = nil, backtestFile: BacktestRef? = nil, today: TodayForecast? = nil,
+         hourly: ForecastSeries? = nil, blocks: ForecastSeries? = nil, verification: Verification? = nil) {
         self.schemaVersion = schemaVersion
         self.place = place
         self.issuedAt = issuedAt
@@ -65,6 +72,10 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         self.now = now
         self.trackRecord = trackRecord
         self.backtestFile = backtestFile
+        self.today = today
+        self.hourly = hourly
+        self.blocks = blocks
+        self.verification = verification
     }
 
     /// As synthesized, except `now`, `track_record` and `backtest_file`: optional, and a block that cannot be read is dropped
@@ -87,7 +98,14 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         now = c.lenient(StationObservation.self, .now)
         trackRecord = c.lenient(TrackRecord.self, .trackRecord)
         backtestFile = c.lenient(BacktestRef.self, .backtestFile)
+        today = c.lenient(TodayForecast.self, .today)
+        hourly = c.lenient(ForecastSeries.self, .hourly)
+        blocks = c.lenient(ForecastSeries.self, .blocks)
+        verification = c.lenient(Verification.self, .verification)
     }
+
+    /// The hourly entries, then the 3-hour blocks, as the strip shows them (beta, unverified).
+    var hourlyStrip: [ForecastHour] { (hourly?.entries ?? []) + (blocks?.entries ?? []) }
 
     nonisolated struct Place: Codable, Equatable, Sendable {
         let id: String
@@ -143,8 +161,11 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
         let tier: String?
         /// Weights for the high, largest first.
         let weights: [Weight]
+        /// Beta (28 Nov 2026), unverified: the day's general weather over its climate day.
+        var conditionRaw: String? = nil
 
         var id: Int { day }
+        var condition: WeatherCondition? { WeatherCondition(raw: conditionRaw) }
 
         /// The tier to show: the published one when the app knows it, otherwise worked out from `certainty`.
         var certaintyTier: CertaintyTier? {
@@ -157,6 +178,7 @@ nonisolated struct PlaceForecast: Codable, Equatable, Sendable {
             case precipMM = "precip_mm"
             case precipChance = "precip_chance"
             case certainty, tier, weights
+            case conditionRaw = "condition"
         }
     }
 
@@ -244,7 +266,7 @@ nonisolated struct LocalDate: Codable, Hashable, Comparable, Sendable, CustomStr
 extension PlaceForecast.Day {
     /// As the synthesized decoder, plus one rule: Certainty is about the high, so a day with no high
     /// shows no Certainty and no tier, whatever the file says (docs/JSON_SCHEMA.md; files from before
-    /// 27 Nov 2026 could have both).
+    /// 27 Nov 2026 could have both). The beta condition (28 Nov 2026) is read leniently.
     nonisolated init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let high = try c.decodeIfPresent(Double.self, forKey: .high)
@@ -256,6 +278,7 @@ extension PlaceForecast.Day {
                   precipChance: try c.decodeIfPresent(Int.self, forKey: .precipChance),
                   certainty: high == nil ? nil : try c.decodeIfPresent(Int.self, forKey: .certainty),
                   tier: high == nil ? nil : try c.decodeIfPresent(String.self, forKey: .tier),
-                  weights: try c.decode([PlaceForecast.Weight].self, forKey: .weights))
+                  weights: try c.decode([PlaceForecast.Weight].self, forKey: .weights),
+                  conditionRaw: c.lenient(String.self, .conditionRaw))
     }
 }

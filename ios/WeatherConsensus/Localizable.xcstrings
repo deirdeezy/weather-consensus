@@ -43,6 +43,16 @@
         }
       }
     },
+    "%@ to %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ to %2$@"
+          }
+        }
+      }
+    },
     "%@ weather station, %@" : {
       "comment" : "About, Checked against. Values: the station's network (ECCC), the station name.",
       "localizations" : {
@@ -67,6 +77,20 @@
     },
     "%@'s consensus" : {
       "comment" : "Step 4 heading over day 1's source bar. The value is a weekday."
+    },
+    "%@, %@, %@, chance of precipitation %@." : {
+      "comment" : "VoiceOver, hourly tile: time, condition, temperature, chance",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, %3$@, chance of precipitation %4$@."
+          }
+        }
+      }
+    },
+    "%@, in 3-hour steps" : {
+      "comment" : "Hourly strip: day heading for 3-hour blocks"
     },
     "%@. %@, chance %@. High %@, low %@. %@." : {
       "comment" : "VoiceOver label for a closed day row: date, precipitation, chance, high, low, Certainty and tier",
@@ -242,6 +266,9 @@
         }
       }
     },
+    "Beta" : {
+      "comment" : "Pill on parts of the app that are new and not yet checked"
+    },
     "CC BY 4.0 licence" : {
 
     },
@@ -292,6 +319,9 @@
     "China CMA" : {
       "comment" : "Source name: China Meteorological Administration"
     },
+    "Clear" : {
+      "comment" : "Condition at night: clear sky"
+    },
     "Closer than every single source on highs and lows at days 1 to %lld." : {
       "comment" : "Tested card: the consensus beat every source from day 1 to this lead only"
     },
@@ -301,8 +331,14 @@
     "Closer than every single source on highs and lows, at every range from 1 to %lld days." : {
       "comment" : "Tested card: the consensus beat every source on every lead tested. Value: last lead."
     },
+    "Cloudy" : {
+      "comment" : "Condition: cloudy"
+    },
     "Collapsed" : {
 
+    },
+    "Condition: %@. Beta." : {
+      "comment" : "VoiceOver, opened day: the day's condition, a beta"
     },
     "Consensus" : {
       "comment" : "Track record chart: the row for our blended forecast"
@@ -461,7 +497,7 @@
       "comment" : "Certainty tier, 75% and up"
     },
     "High %@" : {
-      "comment" : "Now card: observed high so far"
+      "comment" : "Now card: observed high so far\nNow card: today's high"
     },
     "High temperatures" : {
       "comment" : "VoiceOver: the Highs option"
@@ -479,6 +515,9 @@
       "comment" : "Step 3: a source's highs are too warm on average"
     },
     "Highs: too few days for a habit fix" : {
+
+    },
+    "Hour by hour" : {
 
     },
     "How %lld sources and the normal reached consensus" : {
@@ -557,7 +596,7 @@
       "comment" : "Certainty tier, under 50%"
     },
     "Low %@" : {
-      "comment" : "Now card: observed low so far"
+      "comment" : "Now card: observed low so far\nNow card: today's low"
     },
     "Low temperatures" : {
       "comment" : "VoiceOver: the Lows option"
@@ -609,6 +648,9 @@
     },
     "NOAA GFS" : {
       "comment" : "Source name, do not translate"
+    },
+    "New. Each hour blends the same sources as the days." : {
+      "comment" : "Hourly card note: a beta, no accuracy claim"
     },
     "Newer: %@, %lld h ago" : {
       "comment" : "Now card, values from a newer record. Values: list of values, whole hours since that record",
@@ -667,6 +709,9 @@
     },
     "Not recorded yet" : {
       "comment" : "Track record: our own consensus is not saved yet, so it has no live score"
+    },
+    "Now: %@. Beta." : {
+      "comment" : "VoiceOver, Now card: the current condition, a beta"
     },
     "Numbers from" : {
       "comment" : "VoiceOver: track record picker, archived forecasts or our own record"
@@ -790,6 +835,9 @@
         }
       }
     },
+    "Partly cloudy" : {
+      "comment" : "Condition at night: partly cloudy"
+    },
     "Places" : {
       "comment" : "Places tab title"
     },
@@ -821,13 +869,19 @@
 
     },
     "Rain" : {
-      "comment" : "Track record picker: precipitation amount"
+      "comment" : "Condition: rain\nTrack record picker: precipitation amount"
+    },
+    "Rain and snow" : {
+      "comment" : "Condition: rain and snow mixed"
     },
     "Rain and snow amount" : {
       "comment" : "VoiceOver: the Rain option (precipitation, snow as water)"
     },
     "Rain has no habit fix: amounts are weighted as they are." : {
 
+    },
+    "Raining" : {
+      "comment" : "Now: rain is falling at the station"
     },
     "Read the licence" : {
 
@@ -858,8 +912,20 @@
     "Settings" : {
 
     },
+    "Show all 48 hours and 3-hour blocks" : {
+
+    },
+    "Show less" : {
+
+    },
     "Shows the Certainty breakdown and sources for this day" : {
 
+    },
+    "Snow" : {
+      "comment" : "Condition: snow"
+    },
+    "Snowing" : {
+      "comment" : "Now: snow is falling at the station"
     },
     "So far since %@" : {
       "comment" : "Now card: start of the climate day on the phone's clock"
@@ -896,11 +962,17 @@
         }
       }
     },
+    "Sun and cloud" : {
+      "comment" : "Day condition: partly cloudy"
+    },
     "Sun down all day" : {
 
     },
     "Sun up all day" : {
 
+    },
+    "Sunny" : {
+      "comment" : "Day condition: clear sky"
     },
     "Sunrise %@" : {
 
@@ -970,6 +1042,26 @@
 
     },
     "To show the forecast, the app downloads a public forecast file for each place from GitHub Pages, and from the same site a public file of test results when those change. The files are the same for everyone. The app adds nothing about you to the requests: no account, no device identifier, no location and no settings." : {
+
+    },
+    "Today" : {
+
+    },
+    "Today, observed so far and forecast" : {
+      "comment" : "Now card: today's high and low, a beta"
+    },
+    "Today: high %@, low %@, observed so far and forecast. Beta." : {
+      "comment" : "VoiceOver: today's high and low, a beta",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Today: high %1$@, low %2$@, observed so far and forecast. Beta."
+          }
+        }
+      }
+    },
+    "Tomorrow" : {
 
     },
     "Too few days (%lld)" : {
@@ -1161,6 +1253,9 @@
 
     },
     "millimetres" : {
+
+    },
+    "no condition" : {
 
     },
     "north" : {

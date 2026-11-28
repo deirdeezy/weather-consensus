@@ -7,8 +7,8 @@ extension EnvironmentValues {
 
 /// The Weather tab, built from the design canvas (v8): living sky, navy cards, Inter, and the 14 days as
 /// canvas compact rows that open into a Certainty breakdown (`DayRows.swift`). Only values the published file has are shown.
-/// At the top, the Now card (`NowCard.swift`) when the file has a station observation; no forecast for today,
-/// hourly or condition icons yet.
+/// At the top, the Now card (`NowCard.swift`) when the file has a station observation. The hourly strip
+/// (`HourlyCard.swift`) and the condition icons are a beta (28 Nov 2026): shown when the file has them, no accuracy claim.
 struct WeatherScreen: View {
     let model: ForecastScreenModel
     var openSettings: () -> Void = {}
@@ -63,7 +63,7 @@ struct WeatherScreen: View {
                 header(style: style)
                 if let forecast = model.forecast {
                     if let observation = forecast.now {
-                        NowCard(observation: observation, place: forecast.place, now: now)
+                        NowCard(observation: observation, place: forecast.place, now: now, today: forecast.today)
                     }
                     StatusCard(forecast: forecast, now: now, problemNote: model.problemNote)
                     CertaintyExplainer(forecast: forecast, openConsensus: openConsensus)
@@ -73,6 +73,7 @@ struct WeatherScreen: View {
 
             if let forecast = model.forecast {
                 VStack(spacing: 14) {
+                    HourlyCard(forecast: forecast, now: now)
                     ForecastCard(forecast: forecast, expandedDay: $expandedDay)
                     CreditsCard(credits: forecast.credits)
                 }
@@ -371,8 +372,12 @@ extension ForecastScreenModel {
     /// (`PreviewContent/preview-now-kitimat-2026-11-25T2100Z.json`, as the backend published it) as the `now` block.
     /// `trackRecord`: the file scored and published locally on 27 Nov 2026 00:49 UTC from the `data` branch
     /// with the track record code (real data, before the live file had the block), instead of the 25 Nov file.
-    static func previewFixture(offline: Bool = false, withNow: Bool = false, trackRecord: Bool = false) -> ForecastScreenModel {
-        let name = trackRecord ? "preview-track-record-kitimat-2026-11-27T0049Z" : "preview-fixture-kitimat-2026-11-25T0407Z"
+    /// `beta`: a real file with the beta fields (today, hourly, blocks, conditions), published on 28 Nov 2026 05:57 UTC
+    /// from a copy of the `data` branch (`PreviewContent/preview-beta-kitimat-2026-11-28T0557Z.json`).
+    static func previewFixture(offline: Bool = false, withNow: Bool = false, trackRecord: Bool = false,
+                               beta: Bool = false) -> ForecastScreenModel {
+        let name = beta ? "preview-beta-kitimat-2026-11-28T0557Z"
+            : trackRecord ? "preview-track-record-kitimat-2026-11-27T0049Z" : "preview-fixture-kitimat-2026-11-25T0407Z"
         let url = Bundle.main.url(forResource: name, withExtension: "json")!
         var data = try! Data(contentsOf: url)
         if withNow {
@@ -407,6 +412,26 @@ enum PreviewClock {
     static let observedFresh = ISO8601DateFormatter().date(from: "2026-11-25T21:40:00Z")!
     /// 5 hours after it: dimmed.
     static let observedOld = ISO8601DateFormatter().date(from: "2026-11-26T02:05:00Z")!
+    /// The beta file (issued 28 Nov 2026 05:57 UTC): 10 minutes after its observation, at night.
+    static let beta = ISO8601DateFormatter().date(from: "2026-11-28T06:06:00Z")!
+    /// The beta file at midday in Kitimat (its observation is then too old to show).
+    static let betaMidday = ISO8601DateFormatter().date(from: "2026-11-28T20:00:00Z")!
+}
+
+#Preview("Beta: Weather with hourly and conditions") {
+    WeatherScreen(model: .previewFixture(beta: true))
+        .environment(\.nowOverride, PreviewClock.beta)
+}
+
+#Preview("Beta: midday") {
+    WeatherScreen(model: .previewFixture(beta: true))
+        .environment(\.nowOverride, PreviewClock.betaMidday)
+}
+
+#Preview("Beta: largest text") {
+    WeatherScreen(model: .previewFixture(beta: true))
+        .environment(\.nowOverride, PreviewClock.beta)
+        .dynamicTypeSize(.accessibility5)
 }
 
 #Preview("Weather, light") {

@@ -29,13 +29,27 @@ nonisolated enum SkyTime: String, CaseIterable, Sendable {
 nonisolated enum SkyWeather: String, CaseIterable, Sendable {
     case clear, cloudy, rain, snow, storm, fog
 
-    /// HOOK for the weather-driven sky (docs/BUILD_PLAN.md, Stage 3 step 3).
-    /// Schema v1 has no condition field, so this returns nil and the sky follows the time of day only,
-    /// with no sun, stars, clouds, rain or snow drawn (they would claim weather we do not know).
-    /// When the published file gains a condition field (Stage 4, tested on history first),
-    /// map it to a case here; `SkyView` already draws every case.
-    static func from(_ forecast: PlaceForecast) -> SkyWeather? {
-        nil
+    /// The sky follows the current condition (beta, 28 Nov 2026): `now.condition` (rain or snow measured by the
+    /// station, the sky from the forecast) while the observation is under 3 h old; otherwise the hourly
+    /// forecast for the current hour; otherwise nil (time of day only, nothing drawn that we do not know).
+    /// Map: clear and partly cloudy draw the clear sky, cloudy the cloudy sky, rain the rain sky, snow and
+    /// rain-and-snow the snow sky. Storm and fog are not driven (the file has no such condition).
+    static func from(_ forecast: PlaceForecast, now: Date = .now) -> SkyWeather? {
+        if let obs = forecast.now, now.timeIntervalSince(obs.observedAt) <= ObservationAge.dimAfter,
+           let c = obs.condition?.condition {
+            return from(c)
+        }
+        let current = forecast.hourlyStrip.first { $0.time <= now && now < $0.time.addingTimeInterval(Double($0.hours) * 3600) }
+        return current?.condition.map(from)
+    }
+
+    static func from(_ condition: WeatherCondition) -> SkyWeather {
+        switch condition {
+        case .clear, .partly: .clear
+        case .cloudy: .cloudy
+        case .rain: .rain
+        case .snow, .mixed: .snow
+        }
     }
 }
 
@@ -159,12 +173,12 @@ extension SkyStyle {
     /// The same sky the header contrast tests check (6:1 or more for the header on its backdrop).
     static let calm = SkyStyle(time: .day, weather: nil)
 
-    /// The sky for a place right now: time of day from the real sun, weather from the file (none in v1).
+    /// The sky for a place right now: time of day from the real sun, weather from the file's current condition.
     /// Shared by every tab that sits on the living sky.
     /// With the living sky turned off in Settings, the sky is `calm` at every hour.
     static func current(for forecast: PlaceForecast?, now: Date, living: Bool = true) -> SkyStyle {
         guard living else { return calm }
         guard let forecast else { return SkyStyle(time: .day, weather: nil) }
-        return SkyStyle(time: SkyTime.at(now, place: forecast.place), weather: SkyWeather.from(forecast))
+        return SkyStyle(time: SkyTime.at(now, place: forecast.place), weather: SkyWeather.from(forecast, now: now))
     }
 }

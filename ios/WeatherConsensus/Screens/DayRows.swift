@@ -83,6 +83,9 @@ struct DayRow: View {
             // Largest text: the same values, stacked so nothing truncates.
             VStack(alignment: .leading, spacing: 6) {
                 dateLabel
+                if let condition = day.condition {
+                    HStack(spacing: 8) { ConditionIcon(condition: condition); conditionWord(condition) }
+                }
                 HStack(spacing: 10) { precipitation; chance }
                 HStack(spacing: 10) { highLow(stacked: true); chevron }
                 CertaintyBadge(day: day)
@@ -94,7 +97,12 @@ struct DayRow: View {
             HStack(spacing: 6) {
                 HStack(spacing: 5) {
                     dateLabel.frame(minWidth: 44, alignment: .leading)
-                    precipitation.frame(maxWidth: .infinity, alignment: .leading)
+                    if day.condition != nil { ConditionIcon(condition: day.condition) }
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let condition = day.condition { conditionWord(condition) }
+                        precipitation
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     chance.frame(minWidth: 34, alignment: .leading)
                     highLow(stacked: false).frame(minWidth: 32, alignment: .trailing)
                     chevron.frame(width: 12)
@@ -106,6 +114,13 @@ struct DayRow: View {
             }
             .monospacedDigit()
         }
+    }
+
+    private func conditionWord(_ condition: WeatherCondition) -> some View {
+        Text(verbatim: ConditionText.day(condition))
+            .font(.inter(13, .bold, relativeTo: .footnote))
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var dateLabel: some View {
@@ -170,7 +185,9 @@ nonisolated enum DayRowText {
             ? amount
             : String(localized: "Precipitation \(amount)",
                      comment: "VoiceOver, day row: precipitation amount")
-        return String(localized: "\(ValueText.spokenDate(day.date)). \(precipitation), chance \(ValueText.percent(day.precipChance)). High \(ValueText.shortTemperature(day.high, in: units.temperature)), low \(ValueText.shortTemperature(day.low, in: units.temperature)). \(CertaintyText.ringLabel(day)).",
+        let date = day.condition.map { "\(ValueText.spokenDate(day.date)). \(ConditionText.day($0))" }
+            ?? ValueText.spokenDate(day.date)
+        return String(localized: "\(date). \(precipitation), chance \(ValueText.percent(day.precipChance)). High \(ValueText.shortTemperature(day.high, in: units.temperature)), low \(ValueText.shortTemperature(day.low, in: units.temperature)). \(CertaintyText.ringLabel(day)).",
                       comment: "VoiceOver label for a closed day row: date, precipitation, chance, high, low, Certainty and tier")
     }
 
@@ -200,6 +217,7 @@ struct DayPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            if let condition = day.condition { conditionLine(condition) }
             certaintyBox
             sourcesSection
             valuesSection
@@ -207,6 +225,20 @@ struct DayPanel: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 14)
         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(Palette.detail)))
+    }
+
+    /// The day's condition (beta): icon, word and the Beta pill. No accuracy claim.
+    private func conditionLine(_ condition: WeatherCondition) -> some View {
+        HStack(spacing: 10) {
+            ConditionIcon(condition: condition, size: 36)
+            Text(verbatim: ConditionText.day(condition))
+                .font(.inter(17, .extraBold, relativeTo: .headline))
+                .fixedSize(horizontal: false, vertical: true)
+            BetaPill()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: String(localized: "Condition: \(ConditionText.day(condition)). Beta.",
+                                                 comment: "VoiceOver, opened day: the day's condition, a beta")))
     }
 
     private var certaintyBox: some View {

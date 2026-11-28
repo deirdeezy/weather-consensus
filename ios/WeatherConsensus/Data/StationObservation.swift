@@ -43,6 +43,8 @@ nonisolated struct StationObservation: Codable, Equatable, Sendable {
     /// Which record each current value came from (`values_from`, since 26 Nov 2026). nil in older blocks,
     /// where every value is from the hourly record at `observedAt`.
     let valuesFrom: ValuesFrom?
+    /// Added 28 Nov 2026: precipitation measured now, cloud from the forecast (Data/BetaForecast.swift).
+    var condition: NowCondition? = nil
 
     /// `values_from`: the minute record's and the newest hourly record's times, and per current value which
     /// one it came from. Readers must accept other source names (docs/JSON_SCHEMA.md).
@@ -183,6 +185,7 @@ nonisolated struct StationObservation: Codable, Equatable, Sendable {
         case soFarSince = "so_far_since"
         case soFarHours = "so_far_hours"
         case valuesFrom = "values_from"
+        case condition
     }
 
     init(observedAt: Date, fetchedAt: Date? = nil, source: String? = nil, station: Station? = nil,
@@ -190,7 +193,8 @@ nonisolated struct StationObservation: Codable, Equatable, Sendable {
          windDirDeg: Double? = nil, gustKMH: Double? = nil, pressureKPA: Double? = nil,
          pressureTendency: String? = nil, pressureChange3hKPA: Double? = nil, precip1hMM: Double? = nil,
          highSoFar: Double? = nil, lowSoFar: Double? = nil, precipSoFarMM: Double? = nil,
-         soFarSince: Date? = nil, soFarHours: Int? = nil, valuesFrom: ValuesFrom? = nil) {
+         soFarSince: Date? = nil, soFarHours: Int? = nil, valuesFrom: ValuesFrom? = nil,
+         condition: NowCondition? = nil) {
         self.observedAt = observedAt
         self.fetchedAt = fetchedAt
         self.source = source
@@ -211,6 +215,7 @@ nonisolated struct StationObservation: Codable, Equatable, Sendable {
         self.soFarSince = soFarSince
         self.soFarHours = soFarHours
         self.valuesFrom = valuesFrom
+        self.condition = condition
     }
 
     init(from decoder: any Decoder) throws {
@@ -235,6 +240,7 @@ nonisolated struct StationObservation: Codable, Equatable, Sendable {
         soFarSince = c.lenient(Date.self, .soFarSince)
         soFarHours = c.lenient(Int.self, .soFarHours)
         valuesFrom = c.lenient(ValuesFrom.self, .valuesFrom)
+        condition = c.lenient(NowCondition.self, .condition)
     }
 }
 

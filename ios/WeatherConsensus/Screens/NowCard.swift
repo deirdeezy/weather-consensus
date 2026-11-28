@@ -2,8 +2,10 @@ import SwiftUI
 
 /// The Now card at the top of the Weather tab: the latest observation at the place's approved station,
 /// from the file's optional `now` block. Built from the design canvas's top card ("CURRENT CONDITIONS",
-/// `Main.dc.html`) minus what the beta leaves out (owner decision, 25 Nov 2026): no condition text or icon,
-/// no today forecast, no hourly strip, no summary line. Observation only.
+/// `Main.dc.html`). Option b (owner decision, 28 Nov 2026): the station observation as before, plus the
+/// condition from `now.condition` (rain or snow measured by the station, the sky from the forecast) and
+/// today's high and low (`today`: the station so far and the forecast for the rest of the day). Both are a
+/// beta with no accuracy claim. No summary line.
 ///
 /// - Always labelled "Observed at <station>, X min ago", X counted from the oldest value shown. When some values
 ///   come from a newer minute record, a second line names them and their age ("Newer: temperature and humidity, 2 min ago").
@@ -15,6 +17,7 @@ struct NowCard: View {
     let observation: StationObservation
     let place: PlaceForecast.Place
     let now: Date
+    var today: TodayForecast? = nil
 
     @Environment(\.unitChoice) private var units
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -70,6 +73,17 @@ struct NowCard: View {
     }
 
     private var temperatureBlock: some View {
+        HStack(alignment: .top, spacing: 8) {
+            temperatureColumn
+            Spacer(minLength: 0)
+            if let condition = observation.condition?.condition, !dynamicTypeSize.isAccessibilitySize {
+                ConditionIcon(condition: condition, night: Daylight.isNight(now, place: place), size: 72)
+                    .padding(.top, 6)
+            }
+        }
+    }
+
+    private var temperatureColumn: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 2) {
                 Text(verbatim: NowText.bigTemperature(observation.temp, unit: units.temperature))
@@ -83,8 +97,36 @@ struct NowCard: View {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: NowText.spokenTemperature(observation.temp, unit: units.temperature)))
-
-            if let soFar = NowText.soFar(observation, unit: units.temperature) {
+            if let condition = observation.condition?.condition {
+                let word = ConditionText.now(condition, night: Daylight.isNight(now, place: place))
+                HStack(spacing: 8) {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        ConditionIcon(condition: condition, night: Daylight.isNight(now, place: place))
+                    }
+                    Text(verbatim: word).font(.inter(19, .extraBold, relativeTo: .title3))
+                        .fixedSize(horizontal: false, vertical: true)
+                    BetaPill()
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: String(localized: "Now: \(word). Beta.",
+                                                         comment: "VoiceOver, Now card: the current condition, a beta")))
+            }
+            if let today = NowText.today(today, unit: units.temperature) {
+                let layout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                    : AnyLayout(HStackLayout(spacing: 14))
+                VStack(alignment: .leading, spacing: 2) {
+                    layout {
+                        arrowValue("arrow.up", Palette.warm, today.high)
+                        arrowValue("arrow.down", Palette.link, today.low)
+                    }
+                    Text(verbatim: today.since)
+                        .font(.inter(12.5, .regular, relativeTo: .caption))
+                        .foregroundStyle(Color(Palette.textSecondary))
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: today.spoken))
+            } else if let soFar = NowText.soFar(observation, unit: units.temperature) {
                 let layout = dynamicTypeSize.isAccessibilitySize
                     ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
                     : AnyLayout(HStackLayout(spacing: 14))
@@ -341,6 +383,17 @@ nonisolated enum NowText {
         return SoFar(high: high, low: low, since: sinceText,
                      spoken: String(localized: "Observed so far since \(time): high \(ValueText.shortTemperature(observation.highSoFar, in: unit)), low \(ValueText.shortTemperature(observation.lowSoFar, in: unit))",
                                     comment: "VoiceOver: observed high and low so far"))
+    }
+
+    /// Today's high and low (beta): the station so far and the forecast for the rest of the day.
+    static func today(_ today: TodayForecast?, unit: TemperatureUnit) -> SoFar? {
+        guard let today, today.high != nil || today.low != nil else { return nil }
+        let high = String(localized: "High \(ValueText.shortTemperature(today.high, in: unit))", comment: "Now card: today's high")
+        let low = String(localized: "Low \(ValueText.shortTemperature(today.low, in: unit))", comment: "Now card: today's low")
+        return SoFar(high: high, low: low,
+                     since: String(localized: "Today, observed so far and forecast", comment: "Now card: today's high and low, a beta"),
+                     spoken: String(localized: "Today: high \(ValueText.shortTemperature(today.high, in: unit)), low \(ValueText.shortTemperature(today.low, in: unit)), observed so far and forecast. Beta.",
+                                    comment: "VoiceOver: today's high and low, a beta"))
     }
 
     /// A clock time on the phone's clock ("11:00 PM" or "23:00", as the phone is set).
