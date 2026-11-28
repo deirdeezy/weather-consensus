@@ -124,3 +124,4 @@ Lows:
 - Days 8 to 14 in winter and spring (the horizon test covers 1 Jul to 23 Nov 2026 only).
 - Places other than Kitimat.
 - Wind, gusts, snow vs rain, hourly values.
+- The current condition's rules (gauge thresholds, wet-bulb phase) and the provisional median strip (`median_v0`): logged on every publish and scored nightly against the station from 28 Nov 2026 (`backend/wxc/nowcast.py`); not shown in the app until verified.

@@ -1,6 +1,6 @@
 # Weather Consensus: data branch
 
-Saved state for the hourly and nightly jobs on `main` (`.github/workflows/`). The jobs check this branch out at `data/store/`, run, and commit back. Nothing here is edited by hand. Design and growth figures: `docs/HOSTING.md` on `main`.
+Saved state for the hourly and nightly jobs on `main` (`.github/workflows/`). The jobs check this branch out at `data/store/`, run, and commit back. Nothing here is edited by hand; this README is copied from `backend/ci/data_branch/README.md` on `main` by every job. Design and growth figures: `docs/HOSTING.md` on `main`.
 
 ## Layout
 - `<place>/state.json`: refresh state. The newest run pulled from each source.
@@ -11,6 +11,7 @@ Saved state for the hourly and nightly jobs on `main` (`.github/workflows/`). Th
 - `<place>/now.json`: the latest observation at the place's approved station (ECCC real-time SWOB), replaced every hour; places without an approved station have none.
 - `<place>/hourly/<YYYY-MM-DD>/<HHMMSS>Z_<source>.json`: shadow collection (from 27 Nov 2026), the extra hourly variables (wind, gusts, cloud, weather code, snowfall, humidity, visibility) for lead 0 to 144 h of each deterministic run pulled. Not used by the forecast yet.
 - `<place>/swob/`: shadow collection (from 27 Nov 2026), every field of every hourly record from the place's approved station (ECCC real-time SWOB keeps only about 30 days). `fields.json` plus `hourly-<YYYY-MM>.jsonl`; format in `docs/JSON_SCHEMA.md` on `main`.
+- `<place>/now_log.jsonl`, `<place>/live_now.csv`, `<place>/now_scores.json` (from 28 Nov 2026): what the place file said "now" and a shadow 6-hour strip on every run, matched nightly to the station's hourly records and scored. Not shown in the app until verified.
 - `<place>/live_scores.csv`: every stored pull scored against the station by lead (the shadow-run record).
 - `refusals.jsonl`: every refused or failed call, one line each.
 
