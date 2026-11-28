@@ -314,3 +314,13 @@ def test_shadow_collection_files_do_not_change_the_published_file(tmp_path):
     out = tmp_path / "shadow" / "public"
     pb.publish(PLACE, CFG, store, out, now=NOW, echo=lambda *a: None)
     assert (out / f"{PLACE['id']}.json").read_text() == plain
+
+
+def test_every_publish_appends_one_now_log_line(tmp_path):
+    """28 Nov 2026: what "now" said and the shadow 6-hour strip, every run."""
+    store = make_store(tmp_path)
+    for k in range(2):
+        pb.publish(PLACE, CFG, store, tmp_path / "public", now=NOW + k * 3600, echo=lambda *a: None)
+    lines = [json.loads(x) for x in (store / PLACE["id"] / "now_log.jsonl").read_text().splitlines()]
+    assert [x["issued_at"] for x in lines] == [pb.iso(NOW), pb.iso(NOW + 3600)]
+    assert all(len(x["strip"]) == 6 and x["now"] is None for x in lines)  # no station in this place

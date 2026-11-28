@@ -20,12 +20,14 @@ import argparse
 import datetime as dt
 import json
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from wxc import openmeteo as om  # noqa: E402
+from wxc import nowcast  # noqa: E402
 from wxc.score import already_scored, issue_date_now, score  # noqa: E402
 
 STORE = ROOT / "data" / "store"
@@ -53,6 +55,23 @@ def summary_lines(s: dict) -> list[str]:
     return out
 
 
+def score_now_log(place: dict) -> None:
+    """The "now" log against the station (backend/wxc/nowcast.py): every night,
+    whether or not the forecast scores are due. Never fails the run."""
+    try:
+        r = nowcast.score(STORE, place["id"], int(time.time()))
+    except Exception as e:
+        print(f"  now log not scored: {e}")
+        return
+    if r is None:
+        print("  now log: nothing logged yet")
+        return
+    for L in r["leads"]:
+        t, w = L["temp"], L["rain_or_snow"]
+        print(f"  now log lead {L['lead']} h: temp miss {t['miss']} ({t['n']}), rain or snow "
+              f"hit {w['hit_rate']} false alarm {w['false_alarm_ratio']} ({w['n']}, {w['wet_hours']} wet)")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--place")
@@ -71,6 +90,7 @@ def main() -> int:
     ok = True
     for place in places:
         print(f"{place['name']}:")
+        score_now_log(place)
         issue = args.issue or issue_date_now()
         if args.if_needed and already_scored(STORE, place["id"], issue):
             print(f"  already scored for {issue} with station data through the day before"

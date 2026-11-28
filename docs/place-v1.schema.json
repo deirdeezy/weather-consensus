@@ -134,7 +134,40 @@
         "low_so_far": {"type": ["number", "null"]},
         "precip_so_far_mm": {"type": ["number", "null"], "minimum": 0},
         "so_far_since": {"$ref": "#/$defs/utc"},
-        "so_far_hours": {"type": "integer", "minimum": 0, "maximum": 24}
+        "so_far_hours": {"type": "integer", "minimum": 0, "maximum": 24},
+        "precip_now": {
+          "description": "Added 28 Nov 2026. Precipitation falling now, measured: the station's weighing gauge (10-minute amount) and tipping bucket, from the minute records of the last 15 minutes. Null when no minute record is 20 minutes old or newer (backend/wxc/obs.py).",
+          "type": ["object", "null"],
+          "required": ["observed_at", "falling", "phase"],
+          "properties": {
+            "observed_at": {"$ref": "#/$defs/utc"},
+            "falling": {"type": ["boolean", "null"]},
+            "phase": {"enum": ["rain", "snow", "mixed", null]},
+            "gauge_10min_mm": {"type": ["number", "null"], "minimum": 0},
+            "rain_gauge_10min_mm": {"type": ["number", "null"], "minimum": 0},
+            "wet_bulb": {"type": ["number", "null"]},
+            "wet_bulb_from": {"enum": ["minute", "hourly", null]},
+            "air_temp": {"type": ["number", "null"]}
+          }
+        },
+        "condition": {
+          "description": "Added 28 Nov 2026. Current condition: precipitation and its phase measured (precip_now), cloud from the forecast's current hour (provisional: median of the sources) until there is an observed cloud source. Which part is which: basis. Not shown in the app yet (backend/wxc/nowcast.py).",
+          "type": "object",
+          "required": ["class", "falling", "phase", "cloud_pct", "method"],
+          "properties": {
+            "class": {"enum": ["clear", "partly", "cloudy", "rain", "snow", "mixed", null]},
+            "falling": {"type": ["boolean", "null"]},
+            "phase": {"enum": ["rain", "snow", "mixed", null]},
+            "cloud_pct": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+            "forecast_hour": {"anyOf": [{"$ref": "#/$defs/utc"}, {"type": "null"}]},
+            "method": {"type": "string"}
+          }
+        },
+        "basis": {
+          "description": "Added 28 Nov 2026. For each value of this block that has one, \"measured\" (the station) or \"forecast\". Keys are this block's field names, and condition's: condition, falling, phase, cloud_pct.",
+          "type": "object",
+          "additionalProperties": {"enum": ["measured", "forecast"]}
+        }
       }
     },
     "track_record": {

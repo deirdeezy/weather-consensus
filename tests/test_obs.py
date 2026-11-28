@@ -115,10 +115,11 @@ def test_two_requests_per_place_reach_back_13_hours_after_06_utc(tmp_path):
     assert all("datetime=2026-11-24T18%3A17%3A00Z" in u for u in get.calls)
 
 
-def test_minute_query_asks_for_the_newest_record_only():
+def test_minute_query_asks_for_the_newest_15_records():
+    # 28 Nov 2026: 15 minutes, for precipitation falling now (the newest still sets the values)
     url = obs.minute_query_url("1064324", obs.day_start(FETCHED))
     assert "_is-minutely_obs-value=true" in url
-    assert "sortby=-date_tm-value" in url and "limit=1&" in url
+    assert "sortby=-date_tm-value" in url and "limit=15&" in url
     assert "clim_id-value=1064324" in url and "properties=" in url
 
 

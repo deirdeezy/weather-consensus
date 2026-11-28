@@ -7,13 +7,17 @@ Inputs (all under data/store/<place>/):
   the newest run of every deterministic source.
 - history/normal_records_<id>.json: the 1991 to 2020 normal (days 8 to 14).
 - now.json (hourly, backend/wxc/obs.py): the latest station observation, for
-  places with an approved station only. Published as is in "now".
+  places with an approved station only. Published in "now" as is, plus
+  "condition" and "basis" (backend/wxc/nowcast.py: measured first, the
+  forecast's current hour only for cloud).
 - data/backtest/<place>.json (in the repo, backend/scripts/backtest.py): the
   backtest numbers, published as their own file public/backtest/<place>.json
   (they change only when the backtest is run again); the place file carries
   a small pointer, "backtest_file" (path, SHA-256, bytes).
 
-Also writes data/store/<place>/consensus_log.jsonl: one line per issue date
+Also appends to data/store/<place>/now_log.jsonl what "now" said and a
+shadow 6-hour strip (backend/wxc/nowcast.py; not published). Also writes
+data/store/<place>/consensus_log.jsonl: one line per issue date
 with what we published (our own live record, scored nightly by score.py),
 and appends to issue_ledger.jsonl what was published at two fixed issue
 times a day (the first publish from 13:00 UTC and from 01:00 UTC): values,
@@ -46,7 +50,7 @@ from . import certainty as cert
 from . import consensus as cs
 from . import eccc
 from . import horizon as hz
-from . import obs
+from . import nowcast, obs
 from .daily import CLIMATE_DAY_OFFSET_H
 from .refresh import _write_json, iso, load_state, refusal_logger
 from .score import ALL_LEADS, LEDGER, LIVE_MIN_DAYS, NORMAL, _daily_from_pull
@@ -498,8 +502,11 @@ def publish(place: dict, cfg: dict, store: Path, out_dir: Path, now: int | None 
         raise RuntimeError("no saved pulls, nothing published")
     backtest = load_backtest(backtest_dir, pid)
     used: dict = {}
+    sources = nowcast.load_sources(store, pid, cfg["deterministic_pool"], now)
+    now_block = obs.load_now(store, place)
+    now_pub = nowcast.with_condition(now_block, sources, now) if now_block else None
     doc = build(place, cfg, scores, pulls, load_normal(store, place), now,
-                obs.load_now(store, place), backtest, used_out=used)
+                now_pub, backtest, used_out=used)
     if backtest:  # written first, so the pointer never names a file that is not there yet
         path = out_dir / BACKTEST_DIR / f"{pid}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -509,4 +516,5 @@ def publish(place: dict, cfg: dict, store: Path, out_dir: Path, now: int | None 
     _write_json(out_dir / f"{pid}.json", doc)
     log_consensus(store, pid, doc)
     log_issue(store, pid, ledger_line(doc, used, pulls, now))
+    nowcast.log_now(store, pid, nowcast.log_line(now_pub, sources, now))
     return doc

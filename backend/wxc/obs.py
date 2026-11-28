@@ -40,6 +40,27 @@ Licence: ECCC Data Server End-use Licence (same credit as the daily data,
 backend/wxc/eccc.py); it must not be used in a way that suggests official
 status or endorsement (section 5).
 
+Precipitating now (owner decision, 28 Nov 2026: "now" comes from
+measurements first): `precip_now` from the minute records of the last 15
+minutes. SWOB-ML User Guide v8.17 (15 Jul 2026, section 5.2.3,
+https://dd.weather.gc.ca/today/observations/doc/SWOB-ML_Product_User_Guide_v8.17_e.pdf):
+"precipitation" elements come from the all-weather weighing gauge (liquid and
+frozen), "rainfall" from the tipping bucket (liquid only). The station has no
+precipitation-type sensor. So:
+- falling: the gauge's 10-minute amount (`pcpn_amt_pst10mts`, used only with
+  data flag 1, "derived"; 4 means "incomplete") is 0.1 mm or more, or the
+  tipping bucket (`rnfl_amt_pst1mt`, 0.2 mm a tip) tipped in the last 10
+  minutes. Checked on 5,970 minute records, 24 to 28 Nov 2026 (rain only,
+  small sample): 94% of minutes at 0.1 mm or more fell in hours with 0.2 mm or
+  more, and 0.1% of minutes in dry hours showed 0.1 mm.
+- phase, when falling: wet-bulb 2.0 deg C or above rain, 0.5 or below snow
+  (mixed if the tipping bucket also tipped), between mixed (rain if it
+  tipped); without a wet-bulb: air above 4.5 deg C rain (the guide's own
+  liquid criterion), 0 or below snow, otherwise unknown. Thresholds are the
+  research doc's estimate (docs/research/HOURLY_AND_CONDITIONS.md), to be
+  tuned on saved snow-depth records.
+- No minute record in the last MINUTE_FRESH_MIN minutes: `precip_now` is null.
+
 Output: data/store/<place>/now.json, the block publish.py puts in the file.
 It is replaced only by a good answer, so after a refusal the last block stays
 and its `observed_at` shows its age (the app dims it after 3 h and hides the
@@ -75,8 +96,17 @@ GUST = "max_wnd_spd_10m_pst10mts"
 VALUES = ["air_temp", "dwpt_temp", "rel_hum", WIND, WIND_DIR, WIND10, WIND_DIR10, GUST,
           "mslp", "pres_tend_char_pst3hrs", "pres_tend_amt_pst3hrs", "pcpn_amt_pst1hr",
           "max_air_temp_pst1hr", "min_air_temp_pst1hr"]
+# Precipitation-now fields, asked for by their exact names (they carry data
+# flags or quality flags as named here, not both).
+PRECIP_FIELDS = ["pcpn_amt_pst10mts", "pcpn_amt_pst10mts-data_flag-value", "rnfl_amt_pst1mt",
+                 "rnfl_amt_pst1mt-qa", "wetblb_temp", "wetblb_temp-data_flag-value"]
 FIELDS = ["date_tm-value", "clim_id-value", "data_pvdr-value", "_is-minutely_obs-value"] \
-    + VALUES + [f"{v}-qa" for v in VALUES]
+    + VALUES + [f"{v}-qa" for v in VALUES] + PRECIP_FIELDS
+MINUTES = 15            # minute records asked for (the newest sets the current values)
+MINUTE_FRESH_MIN = 20   # precip_now only from a minute record this recent
+FALLING_GAUGE_MM = 0.1  # weighing gauge, 10 minutes
+FALLING_TIP_MM = 0.2    # tipping bucket, one tip, 10 minutes
+DERIVED = 1             # SWOB data flag "value has been reformulated or mathematically derived"
 
 
 def day_start(now: int) -> dt.datetime:
@@ -95,10 +125,10 @@ def query_url(climate_id: str, since: dt.datetime) -> str:
 
 
 def minute_query_url(climate_id: str, since: dt.datetime) -> str:
-    """The newest minute record since `since` (one record)."""
+    """The newest MINUTES minute records since `since`, newest first."""
     q = {"f": "json", "clim_id-value": climate_id, "_is-minutely_obs-value": "true",
          "datetime": f"{since:%Y-%m-%dT%H:%M:%SZ}/..", "sortby": "-date_tm-value",
-         "limit": 1, "properties": ",".join(FIELDS)}
+         "limit": MINUTES, "properties": ",".join(FIELDS)}
     return URL + "?" + urllib.parse.urlencode(q)
 
 
@@ -185,8 +215,75 @@ def _wind(props: dict, num) -> tuple:
     return wind, wind_dir
 
 
+def _flagged(props: dict, key: str, flag: int = DERIVED):
+    """A value whose data flag is `flag` (SWOB data_flags table), else None."""
+    if props.get(f"{key}-data_flag-value") != flag:
+        return None
+    v = props.get(key)
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return None
+    return float(v)
+
+
+def phase_of(wet_bulb, air_temp, tipped) -> str | None:
+    """Rain, snow or mixed for precipitation falling now (rules in the module docstring)."""
+    if wet_bulb is not None:
+        if wet_bulb >= 2.0:
+            return "rain"
+        if wet_bulb <= 0.5:
+            return "mixed" if tipped else "snow"
+        return "rain" if tipped else "mixed"
+    if air_temp is None:
+        return None
+    if air_temp > 4.5:
+        return "rain"
+    if air_temp <= 0:
+        return "snow"
+    return None
+
+
+def precip_now(minutes: list[dict], hourly: dict | None, now: int) -> dict | None:
+    """Is it raining or snowing now, measured: from the minute records of the
+    last minutes (newest first or in any order) and the newest hourly record.
+    None when no minute record is MINUTE_FRESH_MIN minutes old or newer."""
+    recs = sorted(((t, p) for p in minutes if (t := _time(p)) is not None), key=lambda r: r[0])
+    if not recs:
+        return None
+    t, m = recs[-1]
+    if now - t.timestamp() > MINUTE_FRESH_MIN * 60:
+        return None
+    gauge = _flagged(m, "pcpn_amt_pst10mts")
+    window = [q for u, q in recs if t - dt.timedelta(minutes=10) < u <= t]
+    tips = [_num_flagged(q, "rnfl_amt_pst1mt") for q in window]
+    tips = [x for x in tips if x is not None]
+    bucket = round(sum(tips), 1) if len(tips) >= 8 else None  # 8 of the 10 minutes
+    tipped = bucket is not None and bucket >= FALLING_TIP_MM
+    if gauge is None and bucket is None:
+        falling = None  # neither gauge readable: unknown, not dry
+    else:
+        falling = (gauge is not None and gauge >= FALLING_GAUGE_MM) or tipped
+    wb, wb_from = _flagged(m, "wetblb_temp"), "minute"
+    if wb is None and hourly:
+        wb, wb_from = _flagged(hourly, "wetblb_temp"), "hourly"
+    if wb is None:
+        wb_from = None
+    air = _num_flagged(m, "air_temp")
+    if air is None and hourly:
+        air = _num(hourly, "air_temp")
+    return {
+        "observed_at": iso(int(t.timestamp())),
+        "falling": falling,
+        "phase": phase_of(wb, air, tipped) if falling else None,
+        "gauge_10min_mm": _r(gauge, 1),
+        "rain_gauge_10min_mm": bucket,
+        "wet_bulb": _r(wb, 1),
+        "wet_bulb_from": wb_from,
+        "air_temp": _r(air, 1),
+    }
+
+
 def build_now(records: list[dict], geometry: dict | None, place: dict, station: dict,
-              now: int, minute: dict | None = None) -> dict | None:
+              now: int, minute: dict | None = None, minutes: list[dict] | None = None) -> dict | None:
     """The "now" block from hourly records (oldest first) and, if given, the
     newest minute record. None if there is no hourly record."""
     recs = [(t, p) for p in records if (t := _time(p)) is not None]
@@ -253,6 +350,7 @@ def build_now(records: list[dict], geometry: dict | None, place: dict, station: 
                              if rain and complete and all(x is not None for x in rain) else None),
         "so_far_since": iso(int(start.timestamp())),
         "so_far_hours": len(window),
+        "precip_now": precip_now(minutes if minutes is not None else ([minute] if minute else []), p, now),
     }
 
 
@@ -288,8 +386,9 @@ def fetch_now(place: dict, store: Path, now: int | None = None, get=get_json,
         log("eccc_swob", "obs", f"station {station['climate_id']} provider {provider!r}, not ECCC: not shown")
         return None
     geometry = newest.get("geometry")
-    minute = fetch_minute(station, since, get, log)
-    block = build_now([f["properties"] for f in feats], geometry, place, station, now, minute)
+    minutes = fetch_minutes(station, since, get, log)
+    minute = max(minutes, key=_time) if minutes else None
+    block = build_now([f["properties"] for f in feats], geometry, place, station, now, minute, minutes)
     km = block["station"]["distance_km"] if block else None
     if km is None or km > MAX_KM:
         log("eccc_swob", "obs", f"station {station['climate_id']} at {km} km, over {MAX_KM:g} km: not shown")
@@ -299,21 +398,28 @@ def fetch_now(place: dict, store: Path, now: int | None = None, get=get_json,
 
 
 def fetch_minute(station: dict, since: dt.datetime, get, log) -> dict | None:
-    """Properties of the newest minute record from the station, or None. A
-    refusal is logged and the block is then built from hourly records alone."""
+    """Properties of the newest minute record from the station, or None."""
+    recs = fetch_minutes(station, since, get, log)
+    return max(recs, key=_time) if recs else None
+
+
+def fetch_minutes(station: dict, since: dt.datetime, get, log) -> list[dict]:
+    """Properties of the station's newest minute records (up to MINUTES), or
+    []. A refusal is logged and the block is then built from hourly records
+    alone (and has no precip_now)."""
     try:
         payload = get(minute_query_url(station["climate_id"], since),
                       log=lambda k, d: log("eccc_swob", k, f"minute record: {d}"))
     except Exception as e:
         log("eccc_swob", "gave_up", f"minute record: {e}")
-        return None
+        return []
     recs = [f["properties"] for f in payload.get("features", []) or []
             if isinstance(f, dict) and isinstance(f.get("properties"), dict)]
     recs = [p for p in recs
             if str(p.get("clim_id-value")) == station["climate_id"]
             and p.get("_is-minutely_obs-value") is True
             and p.get("data_pvdr-value") == ECCC_PROVIDER and _time(p) is not None]
-    return max(recs, key=_time) if recs else None
+    return recs
 
 
 def load_now(store: Path, place: dict) -> dict | None:

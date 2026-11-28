@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
 # Commit and push the data branch checkout (data/store) after a job.
 # Usage: bash backend/ci/save_data.sh "commit message"
+# Also brings the branch's README.md up to date with backend/ci/data_branch/README.md.
 # Commits as the GitHub Actions bot unless GIT_AUTHOR_* / GIT_COMMITTER_* are set.
 # Pushes to the branch named by DATA_BRANCH (default: data). Retries after a
 # rebase if the branch moved (the workflows also queue so only one job writes).
 set -euo pipefail
 msg="${1:?commit message}"
 branch="${DATA_BRANCH:-data}"
+readme="$(cd "$(dirname "$0")" && pwd)/data_branch/README.md"
 cd "${DATA_DIR:-data/store}"
+
+# Keep the branch's README the same as backend/ci/data_branch/README.md on main
+# (it was copied only when the branch was seeded before 28 Nov 2026).
+if [ -f "$readme" ] && ! cmp -s "$readme" README.md; then
+  cp "$readme" README.md
+fi
 
 export GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-github-actions[bot]}"
 export GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}"
