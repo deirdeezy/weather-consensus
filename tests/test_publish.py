@@ -140,7 +140,7 @@ def test_schema_accepts_a_field_added_later():
 def test_file_is_compact_and_small(tmp_path):
     _, text = run_publish(tmp_path)
     assert "\n" not in text and ": " not in text
-    assert len(text) < 12_000
+    assert len(text) < 25_000  # owner aim with the beta hourly blocks (28 Nov 2026); was 12,000
 
 
 def test_place_without_station_is_consensus_only():

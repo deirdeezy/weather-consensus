@@ -248,6 +248,15 @@ def previous_runs_url(lat, lon, elevation, model, start, end, leads=range(1, 8),
     return PREVIOUS_RUNS + "?" + urllib.parse.urlencode(q)
 
 
+# Variables of the main 16-day deterministic pull. Temperature and
+# precipitation feed the daily blend; the other five (from 28 Nov 2026) feed
+# the hourly values and the day's condition (backend/wxc/hourly.py). Cost
+# measured live 28 Nov 2026: 7 variables over 16 days = 1.0 weighted call,
+# the same as 2 (variables / 10 x days / 14 = 0.8, and a call counts at least 1).
+MAIN_VARIABLES = ("temperature_2m", "precipitation", "cloud_cover", "snowfall",
+                  "relative_humidity_2m", "wind_speed_10m", "wind_direction_10m")
+
+
 def forecast_url(lat, lon, elevation, model, forecast_days=16,
                  variables=("temperature_2m", "precipitation")) -> str:
     """Latest run of one deterministic model (live forecast API)."""

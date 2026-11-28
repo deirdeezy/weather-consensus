@@ -195,6 +195,21 @@ How it was tested: the consensus is rebuilt day by day on each source's archived
 
 Not in it: "a common free default" (a claim about other apps, not something we test).
 
+## Beta: `today`, `hourly`, `blocks`, `days[].condition`, `verification` (optional)
+Added 28 Nov 2026 without a version change. **All unverified**: the app shows them as a beta and makes no accuracy claim; methods in `docs/ALGORITHM.md`, "Hourly and conditions (beta)". Readers must accept other condition values and treat every value as optional.
+
+Condition values: `clear`, `partly` (partly cloudy), `cloudy`, `rain`, `snow`, `mixed` (rain and snow), or null.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `days[].condition` | string or null | The day's general weather over its climate day (06 to 06 UTC, the same 24 hours as `high`, `low`, `precip_mm`). |
+| `today` | object | The current climate day: `date`, `hours` `{from, to}` (UTC), `high`, `low` (deg C), `high_from`, `low_from` (`observed`: the station so far, or `forecast`: the rest of the day), `precip_so_far_mm` (the station, from `now`), `precip_rest_mm`, `precip_mm` (both), `precip_chance_rest` (percent of sources with 1 mm or more in the rest of the day), `condition`, `verified` (false). |
+| `hourly` | object | 48 hours from the current UTC hour, one array per field, all as long as `time`: `time` (UTC, the hour; temperature is instant, precipitation is the hour ending then), `condition`, `temp`, `feels_like` (deg C), `precip_chance` (percent of sources with 0.2 mm or more), `precip_mm`, `cloud_pct`, `wind_kmh`, `wind_dir_deg` (where the wind blows from; best effort). Plus `from`, `step_h` (1), `method`, `verified` (false). |
+| `blocks` | object | The same for 3-hour blocks from 48 h to 96 h (16 blocks): `time` is the block's start, `temp` the mean of its 3 hours, `precip_mm` its total, `precip_chance` the share of sources with 0.2 mm or more in it; `step_h` 3. |
+| `verification` | object | `verified` and `unverified` (lists of the beta fields: `days.condition`, `today`, `hourly`, `blocks`, `now.condition`), `conditions_verified` (condition classes that passed their backtest; empty today), `day_condition_hours`, `note`. A field moves to `verified` only after its backtest passes (docs/BUILD_PLAN.md). |
+
+Size: Kitimat's file was 19.5 to 20.0 KB with the beta blocks (28 Nov 2026), up from about 14.7 KB.
+
 ## `now` (optional)
 The latest observation at the place's approved station (the newest minute or hourly record, value by value), and what the station has seen so far in the current climate day. Written by `backend/wxc/obs.py` from ECCC's real-time SWOB (MSC GeoMet `swob-realtime`). Observations, not a forecast: the name `today` is kept for a later lead 0 forecast, and `days` still starts at day 1.
 

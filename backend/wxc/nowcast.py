@@ -88,8 +88,10 @@ def newest_extra(store: Path, place_id: str, source: str, now: int) -> dict | No
 
 
 def load_sources(store: Path, place_id: str, pool: list[str], now: int) -> dict:
-    """{source: {"run_unix", "temp", "precip", "cloud", "snowfall"}} from the
-    newest saved main pull (state.json) and the newest extra pull."""
+    """{source: {"run_unix", "temp", "precip", "cloud", "snowfall", "rh",
+    "wind", "wind_dir"}} from the newest saved main pull (state.json); the
+    variables a main pull lacks (pulls before 28 Nov 2026 had temperature
+    and precipitation only) come from the newest extra pull."""
     state = load_state(store, place_id)
     out = {}
     for m in pool:
@@ -103,15 +105,21 @@ def load_sources(store: Path, place_id: str, pool: list[str], now: int) -> dict:
         runs = s.get("runs") or {}
         h = _hourly(rec)
         src = {"run_unix": max(runs.values()) if runs else s["fetched_unix"],
-               "temp": _series(h, "temperature_2m"), "precip": _series(h, "precipitation"),
-               "cloud": {}, "snowfall": {}}
-        extra = newest_extra(store, place_id, m, now)
-        if extra:
-            e = _hourly(extra)
-            src["cloud"], src["snowfall"] = _series(e, "cloud_cover"), _series(e, "snowfall")
+               "temp": _series(h, "temperature_2m"), "precip": _series(h, "precipitation")}
+        extra = None
+        for key, var in EXTRA_SERIES.items():
+            src[key] = _series(h, var)
+            if not src[key]:
+                if extra is None:
+                    extra = newest_extra(store, place_id, m, now) or {}
+                src[key] = _series(_hourly(extra), var)
         out[m] = src
     newest = max((s["run_unix"] for s in out.values()), default=None)
     return {m: s for m, s in out.items() if newest - s["run_unix"] <= LATE_RUN_H * 3600}
+
+
+EXTRA_SERIES = {"cloud": "cloud_cover", "snowfall": "snowfall", "rh": "relative_humidity_2m",
+                "wind": "wind_speed_10m", "wind_dir": "wind_direction_10m"}
 
 
 def hour_key(t: dt.datetime) -> str:
@@ -236,16 +244,45 @@ def strip(sources: dict, now: int, hours: int = STRIP_HOURS) -> list[dict]:
     return out
 
 
-def log_line(now_pub: dict | None, sources: dict, now: int) -> dict:
+def published_strip(hourly: dict, sources: dict, now: int, hours: int = STRIP_HOURS) -> list[dict]:
+    """The first hours of the published hourly block (hourly[1..6]: the next
+    whole hours, as strip()), with each source's values alongside."""
+    base = dt.datetime.fromtimestamp(now - now % 3600, dt.timezone.utc)
+    idx = {t: i for i, t in enumerate(hourly.get("time", []))}
+    out = []
+    for h in range(1, hours + 1):
+        t = base + dt.timedelta(hours=h)
+        v, key = t.strftime("%Y-%m-%dT%H:00:00Z"), hour_key(t)
+        i = idx.get(v)
+        get = (lambda f: hourly[f][i]) if i is not None else (lambda f: None)
+        cond = get("condition")
+        out.append({"h": h, "valid": v, "temp": get("temp"), "precip_mm": get("precip_mm"),
+                    "chance": get("precip_chance"),
+                    "wet": None if cond is None else cond in ("rain", "snow", "mixed"),
+                    "phase": cond if cond in ("rain", "snow", "mixed") else None,
+                    "cloud": get("cloud_pct"), "condition": cond,
+                    "by_source": {m: [s["temp"].get(key), s["precip"].get(key),
+                                      s["snowfall"].get(key), s["cloud"].get(key)]
+                                  for m, s in sorted(sources.items())}})
+    return out
+
+
+def log_line(now_pub: dict | None, sources: dict, now: int, published_hourly: dict | None = None) -> dict:
+    """What the file said "now" and the next 6 hours. From 28 Nov 2026 the
+    hours are the published hourly block (method "published_<its method>");
+    before it existed, the shadow median strip (METHOD)."""
     n = now_pub or {}
+    strip_ = (published_strip(published_hourly, sources, now) if published_hourly
+              else strip(sources, now))
+    method = f"published_{published_hourly.get('method')}" if published_hourly else METHOD
     return {
-        "issued_at": iso(now), "method": METHOD,
+        "issued_at": iso(now), "method": method,
         "by_source_fields": ["temp", "precip_mm", "snowfall_cm", "cloud_pct"],
         "now": None if not now_pub else {
             "observed_at": n.get("observed_at"), "temp": n.get("temp"),
             "precip_1h_mm": n.get("precip_1h_mm"),
             "precip_now": n.get("precip_now"), "condition": n.get("condition"), "basis": n.get("basis")},
-        "strip": strip(sources, now),
+        "strip": strip_,
     }
 
 

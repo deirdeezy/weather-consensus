@@ -238,4 +238,4 @@ def test_file_with_the_block_stays_small(tmp_path):
     (store / tp.PLACE["id"] / "scores.json").write_text(json.dumps(scores_v2()))
     pb.publish(tp.PLACE, tp.CFG, store, tmp_path / "public", now=tp.NOW, echo=lambda *a: None)
     text = (tmp_path / "public" / f"{tp.PLACE['id']}.json").read_text()
-    assert "track_record" in text and "\n" not in text and len(text) < 12_000
+    assert "track_record" in text and "\n" not in text and len(text) < 25_000  # with the beta hourly blocks

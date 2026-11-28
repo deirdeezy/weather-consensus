@@ -50,6 +50,7 @@ from . import certainty as cert
 from . import consensus as cs
 from . import eccc
 from . import horizon as hz
+from . import hourly as hr
 from . import nowcast, obs
 from .daily import CLIMATE_DAY_OFFSET_H
 from .refresh import _write_json, iso, load_state, refusal_logger
@@ -147,10 +148,13 @@ def _precip(F: pd.Series, st: dict):
 
 def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFrame | None,
           now: int, now_block: dict | None = None, backtest: dict | None = None,
-          used_out: dict | None = None) -> dict:
+          used_out: dict | None = None, hourly_inputs: dict | None = None) -> dict:
     """The public document for one place. Pure: no reading or writing.
     used_out, if given, gets the weights used per lead and variable (for the
-    issue ledger)."""
+    issue ledger). hourly_inputs ({"sources", "hourly_scores"}, from
+    publish()) adds the beta blocks: today, hourly, blocks, each day's
+    condition and the verification marker (backend/wxc/hourly.py). Without
+    it the document is as before 28 Nov 2026."""
     pool = cfg["deterministic_pool"]
     issue = issue_date_at(now)
     newest_run = max((p["run_unix"] for p in pulls.values()), default=None)
@@ -244,7 +248,34 @@ def build(place: dict, cfg: dict, scores: dict, pulls: dict, normal: pd.DataFram
         doc["backtest_file"] = backtest_pointer(place["id"], backtest_bytes(backtest))
     if now_block:  # only for a place with an approved station (backend/wxc/obs.py)
         doc["now"] = now_block
+    if hourly_inputs and hourly_inputs.get("sources"):
+        add_beta(doc, hourly_inputs, scores, now, issue, now_block)
     return doc
+
+
+VERIFICATION_NOTE = ("Beta. Not yet checked against station history. No accuracy claim is made "
+                     "for these values (docs/BUILD_PLAN.md).")
+BETA_BLOCKS = ["days.condition", "today", "hourly", "blocks", "now.condition"]
+
+
+def add_beta(doc: dict, inputs: dict, scores: dict, now: int, issue: dt.date, now_block) -> None:
+    """Additive beta fields (28 Nov 2026), all unverified."""
+    srcs = inputs["sources"]
+    b = hr.build(srcs, scores, inputs.get("hourly_scores") or {}, now, issue, now_block, doc["days"])
+    for d in doc["days"]:
+        dc = hr.day_condition(srcs, dt.date.fromisoformat(d["date"]), d["precip_chance"], d["high"], d["low"])
+        d["condition"] = dc["class"]
+    meta = {"method": hr.METHOD, "verified": False}
+    doc["today"] = b["today"]
+    doc["hourly"] = {"from": b["hourly"][0]["time"], "step_h": 1, **meta, **hr._columns(b["hourly"])}
+    if b["blocks"]:
+        doc["blocks"] = {"from": b["blocks"][0]["time"], "step_h": hr.BLOCK_H, **meta, **hr._columns(b["blocks"])}
+    doc["verification"] = {
+        "verified": [], "unverified": [x for x in BETA_BLOCKS if x != "now.condition" or now_block],
+        "conditions_verified": [],
+        "day_condition_hours": "the climate day, 06 UTC to 06 UTC, the same 24 hours as the day's high, low and precipitation",
+        "note": VERIFICATION_NOTE,
+    }
 
 
 def _live_consensus(summary: dict | None, leads: list[int]) -> list | None:
@@ -506,7 +537,8 @@ def publish(place: dict, cfg: dict, store: Path, out_dir: Path, now: int | None 
     now_block = obs.load_now(store, place)
     now_pub = nowcast.with_condition(now_block, sources, now) if now_block else None
     doc = build(place, cfg, scores, pulls, load_normal(store, place), now,
-                now_pub, backtest, used_out=used)
+                now_pub, backtest, used_out=used,
+                hourly_inputs={"sources": sources, "hourly_scores": hr.load_scores(store, pid)})
     if backtest:  # written first, so the pointer never names a file that is not there yet
         path = out_dir / BACKTEST_DIR / f"{pid}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -516,5 +548,5 @@ def publish(place: dict, cfg: dict, store: Path, out_dir: Path, now: int | None 
     _write_json(out_dir / f"{pid}.json", doc)
     log_consensus(store, pid, doc)
     log_issue(store, pid, ledger_line(doc, used, pulls, now))
-    nowcast.log_now(store, pid, nowcast.log_line(now_pub, sources, now))
+    nowcast.log_now(store, pid, nowcast.log_line(now_pub, sources, now, doc.get("hourly")))
     return doc

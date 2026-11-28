@@ -223,8 +223,11 @@ def refresh(place: dict, cfg: dict, store: Path, now: int | None = None,
         return result
 
     for s, ready in todo:
-        build = om.ensemble_url if s.ensemble else om.forecast_url
-        url = build(place["lat"], place["lon"], place["elevation_m"], s.api_model, FORECAST_DAYS)
+        if s.ensemble:
+            url = om.ensemble_url(place["lat"], place["lon"], place["elevation_m"], s.api_model, FORECAST_DAYS)
+        else:  # temperature and precipitation plus the hourly product's variables, same cost
+            url = om.forecast_url(place["lat"], place["lon"], place["elevation_m"], s.api_model,
+                                  FORECAST_DAYS, variables=om.MAIN_VARIABLES)
         try:
             payload = get(url, log=lambda k, d, sid=s.id: log(sid, k, d))
         except om.LimitRefused as e:

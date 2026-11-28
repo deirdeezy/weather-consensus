@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from wxc import openmeteo as om  # noqa: E402
-from wxc import nowcast  # noqa: E402
+from wxc import hourly, nowcast  # noqa: E402
 from wxc.score import already_scored, issue_date_now, score  # noqa: E402
 
 STORE = ROOT / "data" / "store"
@@ -72,6 +72,23 @@ def score_now_log(place: dict) -> None:
               f"hit {w['hit_rate']} false alarm {w['false_alarm_ratio']} ({w['n']}, {w['wet_hours']} wet)")
 
 
+def score_hourly(place: dict, cfg: dict, issue) -> None:
+    """Hourly habit fix by hour of day (backend/wxc/hourly.py) from the saved
+    Previous Runs copies and station records: nothing new is downloaded.
+    Never fails the run."""
+    try:
+        r = hourly.score(STORE, place, cfg, issue, int(time.time()))
+    except Exception as e:
+        print(f"  hourly habit fix not computed: {e}")
+        return
+    if r is None:
+        print("  hourly habit fix: no Previous Runs copies or station records yet")
+        return
+    cells = sum(1 for m in r["sources"].values() for L in m.values() for b in L["bias"] if b is not None)
+    print(f"  hourly habit fix: {len(r['sources'])} sources, {cells} source x lead x hour cells "
+          f"(station {r['station_from']} to {r['station_to']})")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--place")
@@ -95,6 +112,7 @@ def main() -> int:
         if args.if_needed and already_scored(STORE, place["id"], issue):
             print(f"  already scored for {issue} with station data through the day before"
                   " and every download fresh; skipped")
+            score_hourly(place, cfg, issue)
             continue
         try:
             r = score(place, cfg, STORE, issue=issue)
@@ -105,6 +123,7 @@ def main() -> int:
         for line in summary_lines(r["scores"]):
             print("  " + line)
         print(f"  live pulls scored: {len(r['live'])} rows")
+        score_hourly(place, cfg, issue)
     print(om.usage_summary())
     return 0 if ok else 1
 
